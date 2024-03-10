@@ -1,4 +1,4 @@
-import { PluginConfig } from "ts-patch";
+import { type PluginConfig } from "ts-patch";
 
 // TODO: There's probably a way to organize types using very clever discriminated
 // unions that might cut down on a lot of conditionals in the consuming code

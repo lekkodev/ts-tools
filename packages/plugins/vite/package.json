@@ -1,0 +1,38 @@
+{
+  "name": "@lekko/vite-plugin",
+  "version": "0.0.0",
+  "description": "Vite plugin for working with Lekko configs in TypeScript",
+  "type": "module",
+  "main": "dist/index.js",
+  "peerDependencies": {
+    "typescript": ">=5",
+    "vite": ">=4"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.2",
+    "vite": "^5.1.5"
+  },
+  "dependencies": {
+    "@lekko/ts-transformer": "^0.0.0"
+  },
+  "scripts": {
+    "build": "rm -rf dist/ && tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lekkodev/ts-tools.git"
+  },
+  "keywords": [
+    "lekko",
+    "vite",
+    "typescript",
+    "ts"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lekkodev/ts-tools/issues"
+  },
+  "homepage": "https://github.com/lekkodev/ts-tools#readme"
+}

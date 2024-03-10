@@ -8,15 +8,15 @@ import snakeCase from "lodash.snakecase";
 import fs from "node:fs";
 import path from "node:path";
 import os from "os";
-import ts, { TypeChecker } from "typescript";
+import ts, { type TypeChecker } from "typescript";
 import {
-  JSONObject,
-  JSONValue,
-  LekkoConfigJSON,
-  LekkoConfigJSONRule,
-  LekkoConfigJSONTree,
-  LekkoConfigJSONValue,
-  LekkoConfigType,
+  type JSONObject,
+  type JSONValue,
+  type LekkoConfigJSON,
+  type LekkoConfigJSONRule,
+  type LekkoConfigJSONTree,
+  type LekkoConfigJSONValue,
+  type LekkoConfigType,
 } from "./types";
 import { isIntrinsicType } from "./helpers";
 
@@ -209,16 +209,7 @@ function convertSourceFile(sourceFile: ts.SourceFile, checker: TypeChecker) {
         const returnType = checker.getPromisedTypeOfPromise(
           sig.getReturnType(),
         );
-        console.log("dbg// promise", returnType);
 
-        // const promiseType = checker.getReturnTypeOfSignature(sig);
-        // let returnType: ts.Type | undefined;
-        // if (promiseType.objectFlags & ts.ObjectFlags.Reference) {
-        //   const referenceType = promiseType as ts.TypeReference;
-        //   returnType = referenceType.resolvedTypeArguments?.find(() => true);
-        // } else {
-        //   returnType = promiseType.aliasTypeArguments?.find(() => true);
-        // }
         assert(returnType, "Return type of config functions must be a Promise");
 
         // TODO support nested interfaces

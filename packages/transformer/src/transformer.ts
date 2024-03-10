@@ -2,9 +2,10 @@ import assert from "assert";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { TransformerExtras } from "ts-patch";
+import { type TransformerExtras } from "ts-patch";
 import ts from "typescript";
-import { LekkoConfigJSON, LekkoTransformerOptions } from "./types";
+import { type LekkoConfigJSON, type LekkoTransformerOptions } from "./types";
+import { LEKKO_FILENAME_REGEX } from "./helpers";
 
 // Transformer Factory function
 export default function (
@@ -420,8 +421,7 @@ export default function (
 
     const visitor: ts.Visitor = (node: ts.Node) => {
       if (ts.isSourceFile(node)) {
-        // **/lekko/<namespace>.ts, namespace must be kebab-case alphanumeric
-        const match = node.fileName.match(/lekko\/([a-z][a-z0-9-]*)\.ts$/);
+        const match = node.fileName.match(LEKKO_FILENAME_REGEX);
         if (match) {
           namespace = match[1];
           const importDeclaration = ts.factory.createImportDeclaration(

@@ -1,4 +1,4 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env node
 import transformerFactory from "./transformer";
 import assert from "assert";
 import { program } from "commander";
@@ -14,7 +14,7 @@ const options = program.opts();
 const filename = String(options.filename);
 
 const tsProgram = ts.createProgram([filename], {
-  target: ts.ScriptTarget.ES2022,
+  target: ts.ScriptTarget.ES2022, // TODO: read from user tsconfigs
 });
 
 const sourceFile = tsProgram.getSourceFile(filename);

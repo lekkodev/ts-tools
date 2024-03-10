@@ -23,8 +23,14 @@ export default tseslint.config(
           argsIgnorePattern: "^_",
         },
       ],
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        {
+          fixStyle: "inline-type-imports",
+        },
+      ],
     },
-    ignores: ["**/*.config.mjs", "bin/*", "dist/*"],
+    ignores: ["**/*.config.mjs", "**/bin/**/*", "**/dist/**/*"],
   },
   eslintConfigPrettier,
 );
