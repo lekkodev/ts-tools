@@ -15,6 +15,7 @@ The current packages are:
 
 ```bash
 # From repo root
+npm install
 npm run build # builds all packages
 npm pack --workspaces # creates tarballs for all packages
 ```
