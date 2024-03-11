@@ -1,5 +1,6 @@
 import { type Rollup, type Plugin, type PluginOption } from "vite";
-import { spawnSync } from "child_process";
+import transformerFactory from "@lekko/ts-transformer";
+import ts from "typescript";
 
 // TODO: We should allow users to specify location
 // **/lekko/<namespace>.ts, namespace must be kebab-case alphanumeric
@@ -25,13 +26,27 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
 
     transform(code, id): Rollup.TransformResult {
       if (LEKKO_FILENAME_REGEX.test(id)) {
-        // TODO: Try calling transpile explicitly instead
-        const result = spawnSync("npx", ["print-transformed", "-f", id]);
+        // TODO: Read project tsconfig
+        const program = ts.createProgram([id], {
+          target: ts.ScriptTarget.ES2017,
+        });
+        const sourceFile = program.getSourceFile(id);
+        if (sourceFile === undefined) {
+          return {
+            code,
+          };
+        }
+        const transformed = ts.transform(sourceFile, [
+          // TODO: Fix cjs/esm interop across packages
+          transformerFactory.default(program, { noStatic: true }),
+        ]);
+        const printer = ts.createPrinter();
 
         return {
-          code: result.stdout.toString(),
+          code: printer.printFile(transformed.transformed[0]),
         };
       }
+
       return {
         code,
       };

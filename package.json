@@ -4,19 +4,6 @@
   "version": "0.0.0",
   "description": "Tools for integrating with Lekko in TypeScript projects",
   "type": "module",
-  "main": "dist/index.js",
-  "bin": {
-    "ts-to-lekko": "dist/ts-to-lekko.js",
-    "print-transformed": "dist/print-transformed.js"
-  },
-  "exports": {
-    ".": "./dist/index.js",
-    "./transformer": "./dist/transformer.js",
-    "./plugins/vite": {
-      "types": "./dist/plugins/vite/index.d.ts",
-      "default": "./dist/plugins/vite/index.js"
-    }
-  },
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "prepack": "rm -f *.tgz"

@@ -4,8 +4,7 @@
   "description": "TypeScript transformer for Lekko config definitions",
   "main": "dist/index.js",
   "bin": {
-    "ts-to-lekko": "dist/ts-to-lekko.js",
-    "print-transformed": "dist/print-transformed.js"
+    "ts-to-lekko": "dist/ts-to-lekko.js"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

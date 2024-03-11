@@ -25,7 +25,7 @@ export default function (
     const { factory } = context;
     let namespace: string | undefined;
 
-    function injectMagic(node: ts.Statement): ts.Statement | ts.Statement[] {
+    function injectMagic(node: ts.Node): ts.Node | ts.Node[] {
       if (ts.isFunctionDeclaration(node)) {
         const sig = program?.getTypeChecker().getSignatureFromDeclaration(node);
         assert(sig);
@@ -419,45 +419,42 @@ export default function (
       return node;
     }
 
+    function addLekkoImports(sourceFile: ts.SourceFile): ts.SourceFile {
+      return factory.updateSourceFile(sourceFile, [
+        factory.createImportDeclaration(
+          undefined,
+          factory.createImportClause(
+            false,
+            undefined,
+            factory.createNamespaceImport(factory.createIdentifier("lekko")),
+          ),
+          factory.createStringLiteral(
+            pluginConfig?.noStatic ? "@lekko/js-sdk" : "@lekko/node-server-sdk",
+          ),
+          undefined,
+        ),
+        ...sourceFile.statements,
+      ]);
+    }
+
     const visitor: ts.Visitor = (node: ts.Node) => {
       if (ts.isSourceFile(node)) {
         const match = node.fileName.match(LEKKO_FILENAME_REGEX);
         if (match) {
+          // Set Lekko namespace for visiting current source file
           namespace = match[1];
-          const importDeclaration = ts.factory.createImportDeclaration(
-            undefined,
-            ts.factory.createImportClause(
-              false,
-              undefined,
-              ts.factory.createNamespaceImport(
-                ts.factory.createIdentifier("lekko"),
-              ),
-            ),
-            ts.factory.createStringLiteral(
-              pluginConfig?.noStatic
-                ? "@lekko/js-sdk"
-                : "@lekko/node-server-sdk",
-            ),
-            undefined,
-          );
 
-          const transformed = ts.visitNodes<
-            ts.Statement,
-            ts.NodeArray<ts.Statement>,
-            ts.Statement
-          >(node.statements, injectMagic, (node): node is ts.Statement =>
-            ts.isStatement(node),
-          );
+          let transformed = ts.visitEachChild(node, injectMagic, context);
+          transformed = addLekkoImports(transformed);
 
-          return ts.factory.updateSourceFile(node, [
-            importDeclaration,
-            ...transformed,
-          ]);
+          return transformed;
         }
       }
       return node;
     };
 
-    return (file: ts.SourceFile) => ts.visitNode(file, visitor);
+    return (sourceFile: ts.SourceFile) => {
+      return ts.visitNode(sourceFile, visitor) as ts.SourceFile;
+    };
   };
 }
