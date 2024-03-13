@@ -58,7 +58,7 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
   return {
     name: "vite-plugin-lekko-typescript",
     enforce: "pre",
-    apply,
+    apply: apply ?? "build",
 
     buildStart(_options) {
       // Create & transform program
