@@ -62,6 +62,10 @@ export default defineConfig({
 
 ## TODOs
 
+### Full ruleslang
+
+Other comparison operators, bucketing, etc.
+
 ### Automatic install script
 
 Especially for Node projects, we should provide an automatic install script that updates users' `tsconfig.json`, `package.json`, etc. in one command.

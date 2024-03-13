@@ -143,6 +143,10 @@ export function transformer(
   return (context: ts.TransformationContext) => {
     const { factory } = context;
 
+    function maybeWrapAwait(expr: ts.Expression, cond?: boolean) {
+      return cond ? factory.createAwaitExpression(expr) : expr;
+    }
+
     function transformLocalToRemote(
       node: ts.FunctionDeclaration,
       namespace: string,
@@ -165,10 +169,6 @@ export function transformer(
         ?.getTypeChecker()
         .getPromisedTypeOfPromise(sig.getReturnType());
       assert(type);
-      // TODO: Allow no parameters (i.e. contextless)
-      const paramsAsBareObj = sig.parameters[0]?.valueDeclaration
-        ?.getChildren()[0]
-        ?.getFullText();
 
       if (type.flags & tsInstance.TypeFlags.String) {
         getter = "getString";
@@ -194,9 +194,6 @@ export function transformer(
       if (getter === "getProto") {
         const protoTypeParts = config.tree.default["@type"].split(".");
         const protoType = protoTypeParts[protoTypeParts.length - 1];
-        // For JS SDK the get calls need to be awaited
-        const wrapAwait = (expr: ts.Expression) =>
-          pluginConfig?.noStatic ? factory.createAwaitExpression(expr) : expr;
         return [
           factory.createImportDeclaration(
             undefined,
@@ -218,19 +215,29 @@ export function transformer(
             node.asteriskToken,
             node.name,
             node.typeParameters,
-            pluginConfig?.noStatic
-              ? [
-                  ...node.parameters,
-                  factory.createParameterDeclaration(
-                    undefined,
-                    undefined,
-                    factory.createIdentifier("client"),
-                    undefined,
-                    undefined,
-                    undefined,
-                  ),
-                ]
-              : node.parameters,
+            [
+              factory.createParameterDeclaration(
+                undefined,
+                undefined,
+                factory.createIdentifier("ctx"),
+                undefined,
+                undefined,
+                undefined,
+              ),
+            ].concat(
+              pluginConfig?.noStatic
+                ? [
+                    factory.createParameterDeclaration(
+                      undefined,
+                      undefined,
+                      factory.createIdentifier("client"),
+                      undefined,
+                      undefined,
+                      undefined,
+                    ),
+                  ]
+                : [],
+            ),
             node.type,
             factory.createBlock(
               [
@@ -267,7 +274,8 @@ export function transformer(
                           undefined,
                           [
                             factory.createPropertyAccessExpression(
-                              wrapAwait(
+                              // For JS SDK get calls need to be awaited
+                              maybeWrapAwait(
                                 factory.createCallExpression(
                                   factory.createPropertyAccessExpression(
                                     pluginConfig?.noStatic
@@ -305,16 +313,11 @@ export function transformer(
                                         factory.createIdentifier("fromJSON"),
                                       ),
                                       undefined,
-                                      paramsAsBareObj
-                                        ? [
-                                            factory.createIdentifier(
-                                              paramsAsBareObj,
-                                            ),
-                                          ]
-                                        : [],
+                                      [factory.createIdentifier("ctx")],
                                     ),
                                   ],
                                 ),
+                                pluginConfig?.noStatic,
                               ),
                               factory.createIdentifier("value"),
                             ),
@@ -390,19 +393,29 @@ export function transformer(
           node.asteriskToken,
           node.name,
           node.typeParameters,
-          pluginConfig?.noStatic
-            ? [
-                ...node.parameters,
-                factory.createParameterDeclaration(
-                  undefined,
-                  undefined,
-                  factory.createIdentifier("client"),
-                  undefined,
-                  undefined,
-                  undefined,
-                ),
-              ]
-            : node.parameters,
+          [
+            factory.createParameterDeclaration(
+              undefined,
+              undefined,
+              "ctx",
+              undefined,
+              undefined,
+              undefined,
+            ),
+          ].concat(
+            pluginConfig?.noStatic
+              ? [
+                  factory.createParameterDeclaration(
+                    undefined,
+                    undefined,
+                    factory.createIdentifier("client"),
+                    undefined,
+                    undefined,
+                    undefined,
+                  ),
+                ]
+              : [],
+          ),
           node.type,
           factory.createBlock(
             [
@@ -457,9 +470,7 @@ export function transformer(
                                 factory.createIdentifier("fromJSON"),
                               ),
                               undefined,
-                              paramsAsBareObj
-                                ? [factory.createIdentifier(paramsAsBareObj)]
-                                : [],
+                              [factory.createIdentifier("ctx")],
                             ),
                           ],
                         ),
