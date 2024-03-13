@@ -37,7 +37,7 @@ In `tsconfig.json`:
   "compilerOptions": {
     ...
     "plugins": [
-      { "transform": "@lekko/ts-transformer" }
+      { "transform": "@lekko/ts-transformer", "transformProgram": true }
     ]
   }
 }

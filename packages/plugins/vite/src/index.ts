@@ -1,6 +1,7 @@
 import { type Rollup, type Plugin, type PluginOption } from "vite";
-import transformerFactory from "@lekko/ts-transformer";
+import path from "node:path";
 import ts from "typescript";
+import transformProgram, { helpers } from "@lekko/ts-transformer";
 
 // TODO: We should allow users to specify location
 // **/lekko/<namespace>.ts, namespace must be kebab-case alphanumeric
@@ -13,43 +14,97 @@ export interface LekkoViteOptions {
    * production builds (i.e. `vite build`). Defaults to only run on build.
    */
   apply?: Plugin["apply"];
+  /**
+   * Relative path to a tsconfig.json file. Defaults to looking in the
+   * current directory.
+   */
+  tsconfigPath?: string;
+  /**
+   * Relative path to the directory containing Lekko config TypeScript files.
+   * Defaults to ./src/lekko.
+   */
+  configSrcPath?: string;
 }
 
 // TODO: Investigate if this can be a compatible Rollup plugin instead
 export default function (options: LekkoViteOptions = {}): PluginOption {
-  const { apply } = options;
+  const {
+    apply,
+    tsconfigPath = "./tsconfig.json",
+    configSrcPath = "./src/lekko",
+  } = options;
+
+  // Parse tsconfig
+  const configFileName = ts.findConfigFile(
+    path.dirname(tsconfigPath),
+    (path) => ts.sys.fileExists(path),
+    path.basename(tsconfigPath),
+  );
+  if (configFileName === undefined) {
+    throw new Error("Could not find tsconfig file.");
+  }
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+  const configFile = ts.readConfigFile(configFileName!, (path) =>
+    ts.sys.readFile(path),
+  );
+  const compilerOptions = ts.parseJsonConfigFileContent(
+    configFile.config,
+    ts.sys,
+    "./",
+  );
+
+  let tsProgram: ts.Program | undefined;
 
   return {
     name: "vite-plugin-lekko-typescript",
     enforce: "pre",
     apply,
 
-    transform(code, id): Rollup.TransformResult {
-      if (LEKKO_FILENAME_REGEX.test(id)) {
-        // TODO: Read project tsconfig
-        const program = ts.createProgram([id], {
-          target: ts.ScriptTarget.ES2017,
-        });
-        const sourceFile = program.getSourceFile(id);
-        if (sourceFile === undefined) {
-          return {
-            code,
-          };
-        }
-        const transformed = ts.transform(sourceFile, [
-          // TODO: Fix cjs/esm interop across packages
-          transformerFactory.default(program, { noStatic: true }),
-        ]);
-        const printer = ts.createPrinter();
+    buildStart(_options) {
+      // Create & transform program
+      tsProgram = ts.createProgram(compilerOptions.fileNames, {
+        ...compilerOptions.options,
+        noEmit: true,
+      });
+      tsProgram = transformProgram.default(
+        tsProgram,
+        undefined,
+        { noStatic: true, configSrcPath },
+        { ts },
+      );
+    },
 
+    resolveId(source, importer) {
+      if (tsProgram === undefined) {
+        this.error(
+          "Something went wrong with the Lekko plugin: TS program not found",
+        );
+      }
+      if (helpers.isLekkoConfigFile(importer ?? "", configSrcPath)) {
+        // Need to handle resolving proto binding imports - they're not on the FS
+        if (source.endsWith("_pb.js")) {
+          return path.resolve(
+            path.join(configSrcPath, source.replace(/.js$/, ".ts")),
+          );
+        }
+      }
+      return null;
+    },
+
+    load(id): Rollup.LoadResult {
+      if (tsProgram === undefined) {
+        this.error(
+          "Something went wrong with the Lekko plugin: TS program not found",
+        );
+      }
+      // Load transformed code if available
+      const loaded = tsProgram?.getSourceFile(id);
+      if (loaded !== undefined) {
         return {
-          code: printer.printFile(transformed.transformed[0]),
+          code: loaded.getFullText(),
         };
       }
-
-      return {
-        code,
-      };
+      return null;
     },
   };
 }

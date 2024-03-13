@@ -1,15 +1,14 @@
-#!/usr/bin/env node
 import assert from "assert";
 import { spawnSync } from "child_process";
-import { program } from "commander";
 import camelCase from "lodash.camelcase";
 import kebabCase from "lodash.kebabcase";
 import snakeCase from "lodash.snakecase";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import os from "os";
 import ts, { type TypeChecker } from "typescript";
 import {
+  type ProtoFileBuilder,
   type JSONObject,
   type JSONValue,
   type LekkoConfigJSON,
@@ -19,317 +18,299 @@ import {
   type LekkoConfigType,
 } from "./types";
 import { isIntrinsicType } from "./helpers";
+import { rimrafSync } from "rimraf";
 
-/*
-    TODOs
-    * rewrite the code to be /less/ vomit inducing
-    * command line args
-
-    Stretch:
-    * Static Contexts (might make things easier tbh)
-    * constants at the top of the file
-    * enums, maybe detect sex: 'male' | 'female'
-    * Code gen from the repo (should be easy just not needed now)
-    * config description as jsdoc
-    * some sort of watcher thing (maybe hook into yarn?)
-    * Bucketing
-
-*/
-
-function convertSourceFile(sourceFile: ts.SourceFile, checker: TypeChecker) {
-  function exprToContextKey(expr: ts.Expression): string {
-    switch (expr.kind) {
-      case ts.SyntaxKind.Identifier:
-        return expr.getText();
-      case ts.SyntaxKind.PropertyAccessExpression:
-        return (expr as ts.PropertyAccessExpression).name.getText();
-      default:
-        throw new Error(
-          `need to be able to handle: ${ts.SyntaxKind[expr.kind]}`,
-        );
-    }
+function exprToContextKey(expr: ts.Expression): string {
+  switch (expr.kind) {
+    case ts.SyntaxKind.Identifier:
+      return expr.getText();
+    case ts.SyntaxKind.PropertyAccessExpression:
+      return (expr as ts.PropertyAccessExpression).name.getText();
+    default:
+      throw new Error(`need to be able to handle: ${ts.SyntaxKind[expr.kind]}`);
   }
-
-  function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
-    switch (expression.kind) {
-      case ts.SyntaxKind.BinaryExpression: {
-        const binaryExpr = expression as ts.BinaryExpression;
-        switch (binaryExpr.operatorToken.kind) {
-          case ts.SyntaxKind.EqualsEqualsEqualsToken:
-            return {
-              atom: {
-                contextKey: exprToContextKey(binaryExpr.left),
-                comparisonValue: expressionToJsonValue(binaryExpr.right) as
-                  | boolean
-                  | string
-                  | number,
-                comparisonOperator: "COMPARISON_OPERATOR_EQUALS",
-              },
-            };
-          case ts.SyntaxKind.AmpersandAmpersandToken:
-            return {
-              logicalExpression: {
-                rules: [
-                  expressionToThing(binaryExpr.left),
-                  expressionToThing(binaryExpr.right),
-                ],
-                logicalOperator: "LOGICAL_OPERATOR_AND",
-              },
-            };
-          default:
-            throw new Error(
-              `need to be able to handle: ${ts.SyntaxKind[binaryExpr.operatorToken.kind]}`,
-            );
-        }
-      }
-      case ts.SyntaxKind.ParenthesizedExpression: {
-        const expr = expression as ts.ParenthesizedExpression;
-        return expressionToThing(expr.expression);
-      }
-      // TODO other literal types
-      default: {
-        throw new Error(
-          `need to be able to handle: ${ts.SyntaxKind[expression.kind]}`,
-        );
-      }
-    }
-  }
-
-  function ifStatementToRule(ifStatement: ts.IfStatement, returnType: string) {
-    const block = ifStatement.thenStatement as ts.Block;
-    if (block.statements.length != 1) {
-      throw new Error(
-        `Must only contain return statement: ${block.getFullText()}`,
-      );
-    }
-    if (ifStatement.elseStatement != undefined) {
-      throw new Error(
-        `Else does not yet exist, sorry: ${ifStatement.getFullText()}`,
-      );
-    }
-    return {
-      rule: expressionToThing(ifStatement.expression),
-      value: returnStatementToValue(
-        block.statements[0] as ts.ReturnStatement,
-        returnType,
-      ),
-    };
-  }
-
-  function returnStatementToValue(
-    returnNode: ts.ReturnStatement,
-    returnType: string,
-  ): LekkoConfigJSONValue {
-    const expression = returnNode.expression;
-    assert(expression);
-    return expressionToProtoValue(expression, returnType);
-  }
-
-  // HACK: Essential eval(), it's an easy way to handle string literals, etc.
-  function expressionToJsonValue(expression: ts.Expression): JSONValue {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-implied-eval
-    return Function(`return ${expression.getFullText()}`)();
-  }
-
-  function expressionToProtoValue(
-    expression: ts.Expression,
-    protoType?: string,
-  ): LekkoConfigJSONValue {
-    switch (expression.kind) {
-      case ts.SyntaxKind.FalseKeyword:
-        return {
-          "@type": "type.googleapis.com/google.protobuf.BoolValue",
-          value: false,
-        };
-      case ts.SyntaxKind.TrueKeyword:
-        return {
-          "@type": "type.googleapis.com/google.protobuf.BoolValue",
-          value: true,
-        };
-      case ts.SyntaxKind.StringLiteral:
-        return {
-          "@type": "type.googleapis.com/google.protobuf.StringValue",
-          value: expressionToJsonValue(expression) as string,
-        };
-      case ts.SyntaxKind.NumericLiteral:
-        return {
-          "@type": "type.googleapis.com/google.protobuf.DoubleValue",
-          value: new Number(expression.getText()).valueOf(),
-        };
-      case ts.SyntaxKind.ObjectLiteralExpression:
-        return {
-          ...(expressionToJsonValue(expression) as JSONObject),
-          // Relies on a proto message being defined that has the same name as used
-          "@type": `type.googleapis.com/${namespace}.config.v1beta1.${protoType}`,
-        };
-      default:
-        throw new Error(
-          `need to be able to handle: ${ts.SyntaxKind[expression.kind]}`,
-        );
-    }
-  }
-
-  function getLekkoType(returnType: ts.Type): LekkoConfigType {
-    if (returnType.flags & ts.TypeFlags.Boolean) {
-      return "FEATURE_TYPE_BOOL";
-    }
-    if (returnType.flags & ts.TypeFlags.Number) {
-      return "FEATURE_TYPE_FLOAT";
-    }
-    if (returnType.flags & ts.TypeFlags.String) {
-      return "FEATURE_TYPE_STRING";
-    }
-    if (returnType.flags & ts.TypeFlags.Object) {
-      return "FEATURE_TYPE_PROTO";
-    }
-    throw new Error(
-      `Unsupported TypeScript type: ${returnType.flags} - ${tsProgram?.getTypeChecker().typeToString(returnType)}`,
-    );
-  }
-
-  function processNode(node: ts.Node) {
-    switch (node.kind) {
-      case ts.SyntaxKind.FunctionDeclaration: {
-        const functionDeclaration = node as ts.FunctionDeclaration;
-        assert(functionDeclaration);
-
-        if (functionDeclaration.name === undefined) {
-          throw new Error("Unparsable function name");
-        }
-        const getterName = functionDeclaration.name.escapedText.toString();
-        if (!/^\s*get[A-Z][A-Za-z]*$/.test(getterName)) {
-          // no idea why that leading space is there..
-          throw new Error(`Unparsable function name: "${getterName}"`);
-        }
-        const sig = checker.getSignatureFromDeclaration(functionDeclaration);
-        assert(sig);
-
-        const configKey = kebabCase(getterName.substring(3));
-
-        const returnType = checker.getPromisedTypeOfPromise(
-          sig.getReturnType(),
-        );
-
-        assert(returnType, "Return type of config functions must be a Promise");
-
-        // TODO support nested interfaces
-        const configType = getLekkoType(returnType);
-
-        let valueType: string;
-        if (isIntrinsicType(returnType)) {
-          // This is how we check for boolean/number/string
-          valueType = returnType.intrinsicName;
-        } else {
-          valueType = checker.typeToString(
-            returnType,
-            undefined,
-            ts.TypeFormatFlags.None,
-          );
-        }
-        assert(functionDeclaration.body);
-
-        let configTreeDefault:
-          | LekkoConfigJSONTree<typeof configType>["default"]
-          | undefined;
-        let configTreeConstraints:
-          | LekkoConfigJSONTree<typeof configType>["constraints"]
-          | undefined;
-
-        for (const statement of functionDeclaration.body.statements) {
-          switch (statement.kind) {
-            case ts.SyntaxKind.IfStatement: {
-              const { rule, value } = ifStatementToRule(
-                statement as ts.IfStatement,
-                valueType,
-              );
-              if (configTreeConstraints === undefined) {
-                configTreeConstraints = [];
-              }
-              configTreeConstraints.push({
-                value: value,
-                ruleAstNew: rule,
-              });
-              break;
-            }
-            case ts.SyntaxKind.ReturnStatement: {
-              // TODO check that it's only 3
-              // TODO refactor for all return types
-              configTreeDefault = returnStatementToValue(
-                statement as ts.ReturnStatement,
-                valueType,
-              );
-              break;
-            }
-            default: {
-              throw new Error(
-                `Unable to handle: ${ts.SyntaxKind[statement.kind]}`,
-              );
-            }
-          }
-        }
-
-        assert(
-          configTreeDefault,
-          "Missing default value, check for return statement",
-        );
-
-        const config: LekkoConfigJSON<typeof configType> = {
-          key: configKey,
-          // TODO: Handle descriptions
-          description: "Generated from TypeScript",
-          tree: {
-            default: configTreeDefault,
-            constraints: configTreeConstraints,
-          },
-          type: configType,
-        };
-
-        const configJSON = JSON.stringify(config, null, 2);
-        const jsonDir = path.join(repoPath, namespace, "gen", "json");
-        fs.mkdirSync(jsonDir, { recursive: true });
-        fs.writeFileSync(path.join(jsonDir, `${config.key}.json`), configJSON);
-        const spawnReturns = spawnSync(
-          "lekko",
-          ["exp", "gen", "starlark", "-n", namespace, "-c", config.key],
-          {
-            encoding: "utf-8",
-            cwd: repoPath,
-          },
-        );
-        if (spawnReturns.error !== undefined || spawnReturns.status !== 0) {
-          throw new Error(`Failed to generate starlark for ${config.key}`);
-        }
-
-        break;
-      }
-      case ts.SyntaxKind.EndOfFileToken: {
-        break;
-      }
-      case ts.SyntaxKind.InterfaceDeclaration: {
-        break;
-      }
-      case ts.SyntaxKind.EmptyStatement: {
-        break;
-      }
-      default: {
-        throw new Error(
-          `We are unable to parse this yet. Please contact us if you feel like we should be able to handle ${
-            ts.SyntaxKind[node.kind]
-          }`,
-        );
-      }
-    }
-  }
-
-  ts.forEachChild(sourceFile, processNode);
 }
 
-function convertInterfaceToProto(
+function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
+  switch (expression.kind) {
+    case ts.SyntaxKind.BinaryExpression: {
+      const binaryExpr = expression as ts.BinaryExpression;
+      switch (binaryExpr.operatorToken.kind) {
+        case ts.SyntaxKind.EqualsEqualsEqualsToken:
+          return {
+            atom: {
+              contextKey: exprToContextKey(binaryExpr.left),
+              comparisonValue: expressionToJsonValue(binaryExpr.right) as
+                | boolean
+                | string
+                | number,
+              comparisonOperator: "COMPARISON_OPERATOR_EQUALS",
+            },
+          };
+        case ts.SyntaxKind.AmpersandAmpersandToken:
+          return {
+            logicalExpression: {
+              rules: [
+                expressionToThing(binaryExpr.left),
+                expressionToThing(binaryExpr.right),
+              ],
+              logicalOperator: "LOGICAL_OPERATOR_AND",
+            },
+          };
+        default:
+          throw new Error(
+            `need to be able to handle: ${ts.SyntaxKind[binaryExpr.operatorToken.kind]}`,
+          );
+      }
+    }
+    case ts.SyntaxKind.ParenthesizedExpression: {
+      const expr = expression as ts.ParenthesizedExpression;
+      return expressionToThing(expr.expression);
+    }
+    // TODO other literal types
+    default: {
+      throw new Error(
+        `need to be able to handle: ${ts.SyntaxKind[expression.kind]}`,
+      );
+    }
+  }
+}
+
+function ifStatementToRule(
+  ifStatement: ts.IfStatement,
+  namespace: string,
+  returnType: string,
+) {
+  const block = ifStatement.thenStatement as ts.Block;
+  if (block.statements.length != 1) {
+    throw new Error(
+      `Must only contain return statement: ${block.getFullText()}`,
+    );
+  }
+  if (ifStatement.elseStatement != undefined) {
+    throw new Error(
+      `Else does not yet exist, sorry: ${ifStatement.getFullText()}`,
+    );
+  }
+  return {
+    rule: expressionToThing(ifStatement.expression),
+    value: returnStatementToValue(
+      block.statements[0] as ts.ReturnStatement,
+      namespace,
+      returnType,
+    ),
+  };
+}
+
+function returnStatementToValue(
+  returnNode: ts.ReturnStatement,
+  namespace: string,
+  returnType: string,
+): LekkoConfigJSONValue {
+  const expression = returnNode.expression;
+  assert(expression);
+  return expressionToProtoValue(expression, namespace, returnType);
+}
+
+// HACK: Essential eval(), it's an easy way to handle string literals, etc.
+function expressionToJsonValue(expression: ts.Expression): JSONValue {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-implied-eval
+  return Function(`return ${expression.getFullText()}`)();
+}
+
+function expressionToProtoValue(
+  expression: ts.Expression,
+  namespace: string,
+  protoType?: string,
+): LekkoConfigJSONValue {
+  switch (expression.kind) {
+    case ts.SyntaxKind.FalseKeyword:
+      return {
+        "@type": "type.googleapis.com/google.protobuf.BoolValue",
+        value: false,
+      };
+    case ts.SyntaxKind.TrueKeyword:
+      return {
+        "@type": "type.googleapis.com/google.protobuf.BoolValue",
+        value: true,
+      };
+    case ts.SyntaxKind.StringLiteral:
+      return {
+        "@type": "type.googleapis.com/google.protobuf.StringValue",
+        value: expressionToJsonValue(expression) as string,
+      };
+    case ts.SyntaxKind.NumericLiteral:
+      return {
+        "@type": "type.googleapis.com/google.protobuf.DoubleValue",
+        value: new Number(expression.getText()).valueOf(),
+      };
+    case ts.SyntaxKind.ObjectLiteralExpression:
+      return {
+        ...(expressionToJsonValue(expression) as JSONObject),
+        // Relies on a proto message being defined that has the same name as used
+        "@type": `type.googleapis.com/${namespace}.config.v1beta1.${protoType}`,
+      };
+    default:
+      throw new Error(
+        `need to be able to handle: ${ts.SyntaxKind[expression.kind]}`,
+      );
+  }
+}
+
+function getLekkoType(
+  returnType: ts.Type,
+  checker: ts.TypeChecker,
+): LekkoConfigType {
+  if (returnType.flags & ts.TypeFlags.Boolean) {
+    return "FEATURE_TYPE_BOOL";
+  }
+  if (returnType.flags & ts.TypeFlags.Number) {
+    return "FEATURE_TYPE_FLOAT";
+  }
+  if (returnType.flags & ts.TypeFlags.String) {
+    return "FEATURE_TYPE_STRING";
+  }
+  if (returnType.flags & ts.TypeFlags.Object) {
+    return "FEATURE_TYPE_PROTO";
+  }
+  throw new Error(
+    `Unsupported TypeScript type: ${returnType.flags} - ${checker.typeToString(returnType)}`,
+  );
+}
+
+/**
+ * Creates a JSON representation of a Lekko config from a function declaration.
+ */
+export function functionToConfigJSON(
+  node: ts.FunctionDeclaration,
+  checker: ts.TypeChecker,
+  namespace: string,
+): LekkoConfigJSON {
+  if (node.name === undefined) {
+    throw new Error("Unparsable function name");
+  }
+  const getterName = node.name.escapedText.toString();
+  if (!/^\s*get[A-Z][A-Za-z]*$/.test(getterName)) {
+    throw new Error(`Unparsable function name: "${getterName}"`);
+  }
+  const sig = checker.getSignatureFromDeclaration(node);
+  assert(sig);
+
+  const configKey = kebabCase(getterName.substring(3));
+
+  const returnType = checker.getPromisedTypeOfPromise(sig.getReturnType());
+
+  assert(returnType, "Return type of config functions must be a Promise");
+
+  // TODO support nested interfaces
+  const configType = getLekkoType(returnType, checker);
+
+  let valueType: string;
+  if (isIntrinsicType(returnType)) {
+    // This is how we check for boolean/number/string
+    valueType = returnType.intrinsicName;
+  } else {
+    valueType = checker.typeToString(
+      returnType,
+      undefined,
+      ts.TypeFormatFlags.None,
+    );
+  }
+  assert(node.body);
+
+  let configTreeDefault:
+    | LekkoConfigJSONTree<typeof configType>["default"]
+    | undefined;
+  let configTreeConstraints:
+    | LekkoConfigJSONTree<typeof configType>["constraints"]
+    | undefined;
+
+  for (const statement of node.body.statements) {
+    switch (statement.kind) {
+      case ts.SyntaxKind.IfStatement: {
+        const { rule, value } = ifStatementToRule(
+          statement as ts.IfStatement,
+          namespace,
+          valueType,
+        );
+        if (configTreeConstraints === undefined) {
+          configTreeConstraints = [];
+        }
+        configTreeConstraints.push({
+          value: value,
+          ruleAstNew: rule,
+        });
+        break;
+      }
+      case ts.SyntaxKind.ReturnStatement: {
+        // TODO check that it's only 3
+        // TODO refactor for all return types
+        configTreeDefault = returnStatementToValue(
+          statement as ts.ReturnStatement,
+          namespace,
+          valueType,
+        );
+        break;
+      }
+      default: {
+        throw new Error(`Unable to handle: ${ts.SyntaxKind[statement.kind]}`);
+      }
+    }
+  }
+
+  assert(
+    configTreeDefault,
+    "Missing default value, check for return statement",
+  );
+
+  const config: LekkoConfigJSON<typeof configType> = {
+    key: configKey,
+    // TODO: Handle descriptions
+    description: "Generated from TypeScript",
+    tree: {
+      default: configTreeDefault,
+      constraints: configTreeConstraints,
+    },
+    type: configType,
+  };
+  return config;
+}
+
+/**
+ * Generates starlark files in local config repo based on function declarations.
+ * Depends on the Lekko CLI.
+ */
+export function genStarlark(
+  repoPath: string,
+  namespace: string,
+  config: LekkoConfigJSON,
+) {
+  const configJSON = JSON.stringify(config, null, 2);
+  const jsonDir = path.join(repoPath, namespace, "gen", "json");
+  fs.mkdirSync(jsonDir, { recursive: true });
+  fs.writeFileSync(path.join(jsonDir, `${config.key}.json`), configJSON);
+  const spawnReturns = spawnSync(
+    "lekko",
+    ["exp", "gen", "starlark", "-n", namespace, "-c", config.key],
+    {
+      encoding: "utf-8",
+      cwd: repoPath,
+    },
+  );
+  if (spawnReturns.error !== undefined || spawnReturns.status !== 0) {
+    throw new Error(
+      `Failed to generate starlark for ${config.key}: ${spawnReturns.stdout}${spawnReturns.stderr}`,
+    );
+  }
+}
+
+/**
+ * Mutates the proto builder based on the interface declaration node.
+ */
+export function interfaceToProto(
   node: ts.InterfaceDeclaration,
   checker: TypeChecker,
-  registry: {
-    [key: string]: string[];
-  },
+  builder: ProtoFileBuilder,
 ) {
   const name = node.name.getText();
   const fields = node.members.map((member, idx) => {
@@ -342,7 +323,7 @@ function convertInterfaceToProto(
         propertyType,
         propertyName,
         name,
-        registry,
+        builder,
       );
       return `${protoType} ${propertyName} = ${idx + 1};`;
     } else {
@@ -351,13 +332,14 @@ function convertInterfaceToProto(
       );
     }
   });
-  registry[name] = fields;
+  builder.messages[name] = fields;
 }
 
 function symbolToFields(
   node: ts.Symbol,
   typeChecker: ts.TypeChecker,
   name: string,
+  builder: ProtoFileBuilder,
 ) {
   if (node.members == undefined) {
     throw new Error(`Error: Programmer is incompetent.  Replace with ChatGPT.`);
@@ -370,7 +352,7 @@ function symbolToFields(
       propertyType,
       fieldName,
       name,
-      registry,
+      builder,
     );
     return `${protoType} ${fieldName} = ${idx + 1};`;
   });
@@ -381,9 +363,7 @@ function getProtoTypeFromTypeScriptType(
   type: ts.Type,
   propertyName: string,
   name: string,
-  registry: {
-    [key: string]: string[];
-  },
+  builder: ProtoFileBuilder,
 ): string {
   if (type.flags & ts.TypeFlags.String) {
     return "string";
@@ -391,17 +371,36 @@ function getProtoTypeFromTypeScriptType(
   if (type.flags & ts.TypeFlags.Number) {
     return "double";
   }
+  // TODO: Int fields
   if (type.flags & ts.TypeFlags.Boolean) {
     return "bool";
   }
   if (type.flags & ts.TypeFlags.Union) {
+    const unionType: ts.UnionType = type as ts.UnionType;
+    // If optional or undefined and another type, handle - proto fields are all optional
+    if (unionType.types.length === 2) {
+      let definedType: ts.Type;
+      const [typeA, typeB] = unionType.types;
+      if (typeA.flags & ts.TypeFlags.Undefined) {
+        definedType = typeB;
+      } else if (typeB.flags & ts.TypeFlags.Undefined) {
+        definedType = typeA;
+      } else {
+        throw new Error("Union types are currently not fully supported.");
+      }
+      return getProtoTypeFromTypeScriptType(
+        checker,
+        definedType,
+        propertyName,
+        name,
+        builder,
+      );
+    }
     // If all the types are ObjectLiteral - do we want to use that type, or make an enum?  Do we want to do oneOf for the others?
-    throw new Error(
-      `Error: Programmer didn't think through how to handle all unions.  Replace with ChatGPT.`,
-    );
-    //return name + "_" + propertyName.charAt(0).toUpperCase() + propertyName.slice(1);
+    throw new Error("Union types are currently not fully supported.");
   }
   if (type.flags & ts.TypeFlags.Object) {
+    // Need to turn nested objects in interface to protos as well
     const camelCasePropertyName = camelCase(propertyName);
     const childName =
       name +
@@ -421,7 +420,7 @@ function getProtoTypeFromTypeScriptType(
           innerType,
           propertyName,
           name,
-          registry,
+          builder,
         )
       );
       // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
@@ -430,8 +429,10 @@ function getProtoTypeFromTypeScriptType(
     } else {
       const symbol = type.getSymbol();
       assert(symbol);
-      registry[childName] ||= [];
-      registry[childName].push(...symbolToFields(symbol, checker, childName));
+      builder.messages[childName] ||= [];
+      builder.messages[childName].push(
+        ...symbolToFields(symbol, checker, childName, builder),
+      );
     }
     return childName;
   }
@@ -440,100 +441,150 @@ function getProtoTypeFromTypeScriptType(
   );
 }
 
-program
-  .option(
-    "-r, --repo-path <string>",
-    "path to the config repo",
-    path.join(
-      os.homedir(),
-      "Library/Application Support/Lekko/Config Repositories/default/",
-    ),
-  )
-  .requiredOption("-f, --filename <string>", "ts file to convert to Lekko");
-program.parse();
-const options = program.opts();
-
-const repoPath = String(options.repoPath);
-const filename = String(options.filename);
-const namespace = path.basename(filename, path.extname(filename));
-const parentDir = path.dirname(filename);
-
-const defaultInit = spawnSync("lekko", ["repo", "init-default"], {
-  encoding: "utf-8",
-});
-if (defaultInit.error !== undefined || defaultInit.status !== 0) {
-  throw new Error("Failed to initialize default Lekko repo.");
-}
-
-const tsProgram = ts.createProgram([filename], {
-  target: ts.ScriptTarget.ES2022, // TODO: Should change to use user's target if possible
-});
-const typeChecker = tsProgram.getTypeChecker();
-const sourceFile = tsProgram.getSourceFile(filename);
-assert(sourceFile);
-const interfaceNodes = sourceFile.statements.filter((node) =>
-  ts.isInterfaceDeclaration(node),
-);
-
-const registry: { [key: string]: string[] } = {};
-interfaceNodes.forEach((interfaceNode) => {
-  convertInterfaceToProto(
-    interfaceNode as ts.InterfaceDeclaration,
-    typeChecker,
-    registry,
-  );
-});
-
-let protofile = "";
-
-const keys = Object.keys(registry);
-keys.sort((a, b) => b.length - a.length);
-protofile += `syntax = "proto3";\n\n`;
-protofile += `package ${namespace}.config.v1beta1;\n\n`;
-for (const key of keys) {
-  protofile += `message ${key} {\n  ${registry[key].join("\n  ")}\n}\n\n`;
-}
-const protoDir = path.join(repoPath, "proto", namespace, "config", "v1beta1");
-const protoPath = path.join(protoDir, `${namespace}.proto`);
-fs.mkdirSync(protoDir, { recursive: true });
-fs.writeFileSync(protoPath, protofile);
-
-const bufGenTemplate = JSON.stringify({
-  version: "v1",
-  managed: { enabled: true },
-  plugins: [
-    {
-      plugin: "buf.build/bufbuild/es:v1.7.2",
-      out: "gen",
-      opt: ["target=ts"],
-    },
-  ],
-});
-const spawnReturns = spawnSync(
-  "buf",
-  [
-    "generate",
-    "--template",
-    bufGenTemplate,
-    repoPath,
-    "--path",
-    protoPath,
-    "--output",
-    parentDir,
-  ],
-  {
+/**
+ * Check for presence of lekko and buf CLIs. Also creates a default repo for now.
+ * TODO: Add version range checks.
+ */
+export function checkCLIDeps() {
+  const lekkoCmd = spawnSync("lekko", ["--version"]);
+  const bufCmd = spawnSync("buf", ["--version"]);
+  if (
+    lekkoCmd.error !== undefined ||
+    lekkoCmd.status !== 0 ||
+    bufCmd.error !== undefined ||
+    bufCmd.status !== 0
+  ) {
+    throw new Error(
+      "Lekko CLI could not be found. Install it with `brew tap lekkodev/lekko && brew install lekko` and make sure it's located on your PATH.",
+    );
+  }
+  const defaultInitCmd = spawnSync("lekko", ["repo", "init-default"], {
     encoding: "utf-8",
-  },
-);
-if (spawnReturns.error !== undefined || spawnReturns.status !== 0) {
-  throw new Error(
-    `Failed to generate proto bindings:\n${spawnReturns.stdout}\n${spawnReturns.stderr}`,
+  });
+  if (defaultInitCmd.error !== undefined || defaultInitCmd.status !== 0) {
+    throw new Error("Failed to initialize default Lekko repo");
+  }
+}
+
+function getProtoPath(repoPath: string, namespace: string) {
+  return path.join(
+    repoPath,
+    "proto",
+    namespace,
+    "config",
+    "v1beta1",
+    `${namespace}.proto`,
   );
 }
 
-// TODO: apply on all files under Lekko instead of requiring filename
-for (const fileName of [filename]) {
-  const sourceFile = tsProgram.getSourceFile(fileName);
-  assert(sourceFile);
-  convertSourceFile(sourceFile, typeChecker);
+/**
+ * Generate .proto files in local config repo.
+ * TODO: Switch to using proto fds when we want to add more advanced features
+ * and be more error-proof instead of manually constructing file contents
+ */
+export function genProtoFile(
+  sourceFile: ts.SourceFile,
+  repoPath: string,
+  builder: ProtoFileBuilder,
+) {
+  // Nothing to write?
+  if (Object.keys(builder.messages).length === 0) {
+    return;
+  }
+  const namespace = path.basename(
+    sourceFile.path,
+    path.extname(sourceFile.path),
+  );
+  const protoPath = getProtoPath(repoPath, namespace);
+
+  let contents = `syntax = "proto3";\n\n`;
+  contents += `package ${namespace}.config.v1beta1;\n\n`;
+
+  Object.entries(builder.messages).forEach(([messageName, fields]) => {
+    contents += `message ${messageName} {\n  ${fields.join("\n  ")}\n}\n\n`;
+  });
+
+  fs.mkdirSync(path.dirname(protoPath), { recursive: true });
+  fs.writeFileSync(protoPath, contents);
+
+  const formatCmd = spawnSync("buf", ["format", protoPath, "--write"], {
+    encoding: "utf-8",
+  });
+  if (formatCmd.error !== undefined || formatCmd.status !== 0) {
+    throw new Error("Failed to generate well-formed protobuf files.");
+  }
+}
+
+/**
+ * Generate TS proto bindings. Depends on the buf CLI. Returns a map of
+ * relative paths to generated ts contents.
+ * This is a generator function - it can be reentered to trigger cleanup logic.
+ */
+export function* genProtoBindings(repoPath: string, namespace: string) {
+  // Put in temp location to avoid polluting project and for known cleanup
+  // e.g. /tmp/lekko-abcdef/gen/<namespace>/config/v1beta1/<namespace>.proto
+  const outputPath = fs.mkdtempSync(path.join(os.tmpdir(), "lekko-"));
+  const protoPath = getProtoPath(repoPath, namespace);
+
+  if (!fs.existsSync(protoPath)) {
+    yield {} as Record<string, string>;
+    return;
+  }
+
+  // Generate
+  const bufGenTemplate = JSON.stringify({
+    version: "v1",
+    managed: { enabled: true },
+    plugins: [
+      {
+        plugin: "buf.build/bufbuild/es:v1.7.2",
+        out: "gen",
+        opt: ["target=ts"],
+      },
+    ],
+  });
+  const cmd = spawnSync(
+    "buf",
+    [
+      "generate",
+      "--template",
+      bufGenTemplate,
+      repoPath,
+      "--path",
+      protoPath,
+      "--output",
+      outputPath,
+    ],
+    {
+      encoding: "utf-8",
+    },
+  );
+  if (cmd.error !== undefined || cmd.status !== 0) {
+    throw new Error("Failed to generate proto bindings");
+  }
+
+  // Yield the generated _pb.ts files' relative paths and contents
+  const relGenPath = path.join("gen", namespace, "config", "v1beta1");
+  const absGenPath = path.join(outputPath, relGenPath);
+  const files: Record<string, string> = {};
+  if (!fs.existsSync(absGenPath)) {
+    yield files;
+    return;
+  }
+  fs.readdirSync(absGenPath, {
+    withFileTypes: true,
+  }).forEach((dirEnt) => {
+    if (dirEnt.isFile() && path.extname(dirEnt.name) === ".ts") {
+      files[path.join(relGenPath, dirEnt.name)] = fs.readFileSync(
+        path.join(absGenPath, dirEnt.name),
+        {
+          encoding: "utf-8",
+        },
+      );
+    }
+  });
+  yield files;
+
+  // Clean up generated bindings
+  rimrafSync(outputPath);
 }

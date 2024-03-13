@@ -5,6 +5,11 @@ import { type PluginConfig } from "ts-patch";
 
 export interface LekkoTransformerOptions extends PluginConfig {
   repoPath?: string;
+  /**
+   * Path to find directory of TypeScript files that should be transpiled to
+   * Lekko configs. Should be a flat directory. Defaults to ./src/lekko.
+   */
+  configSrcPath?: string;
   noStatic?: boolean;
 }
 
@@ -87,3 +92,13 @@ export type JSONValue = number | string | boolean | JSONObject | JSONValue[];
 export type JSONObject = {
   [key: string]: JSONValue;
 };
+
+// TODO: Probably better and less error prone to use proto FDS
+export interface ProtoFileBuilder {
+  messages: {
+    [key: string]: string[];
+  };
+  enums: {
+    [key: string]: string[];
+  };
+}

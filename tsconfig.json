@@ -19,7 +19,8 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "sourceMap": true
   },
   "exclude": ["dist", "node_modules"]
 }

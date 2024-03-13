@@ -4,7 +4,7 @@
   "description": "TypeScript transformer for Lekko config definitions",
   "main": "dist/index.js",
   "bin": {
-    "ts-to-lekko": "dist/ts-to-lekko.js"
+    "ts-to-lekko": "dist/index.js"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
@@ -22,6 +22,7 @@
     "lodash.camelcase": "^4.3.0",
     "lodash.kebabcase": "^4.1.1",
     "lodash.snakecase": "^4.1.1",
+    "rimraf": "^5.0.5",
     "ts-patch": "^3.1.2",
     "tslib": "^2.6.2"
   },

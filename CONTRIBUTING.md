@@ -13,6 +13,21 @@ The current packages are:
 
 ## Workflows
 
+### Installing new packages
+
+Reading about npm workspaces might be helpful. You can run commands that target a specific workspace by passing `-w <package name>` from the repo root, or by `cd`ing to the package root.
+
+e.g.
+
+```bash
+# Install typescript as a dev dependency for the @lekko/ts-transformer workspace
+npm install -D typescript -w @lekko/ts-transformer
+# Run pack on all workspaces
+npm pack --workspaces
+```
+
+### Consuming local builds in other projects
+
 ```bash
 # From repo root
 npm install
@@ -20,7 +35,7 @@ npm run build # builds all packages
 npm pack --workspaces # creates tarballs for all packages
 ```
 
-I recommend using the tarballs as the dependencies in local projects instead of pointing to the package roots, it helps with noticing dependency issues and such much easier
+I recommend using the tarballs as the dependencies in local projects instead of pointing to the package roots, it helps with noticing dependency issues and such much easier.
 
 e.g. In `package.json`:
 
