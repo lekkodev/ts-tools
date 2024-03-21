@@ -240,6 +240,7 @@ export function transformer(
                 undefined,
               ),
             ].concat(
+              // For FE, require client as second parameter
               target !== "node"
                 ? [
                     factory.createParameterDeclaration(
@@ -254,121 +255,101 @@ export function transformer(
                 : [],
             ),
             node.type,
-            factory.createBlock(
-              [
-                factory.createTryStatement(
-                  factory.createBlock(
-                    [
-                      factory.createVariableStatement(
+            prependParamVars(
+              node,
+              "ctx",
+              wrapTryCatch(
+                factory.createBlock(
+                  [
+                    factory.createVariableStatement(
+                      undefined,
+                      factory.createVariableDeclarationList(
+                        [
+                          factory.createVariableDeclaration(
+                            "config",
+                            undefined,
+                            undefined,
+                            factory.createNewExpression(
+                              factory.createPropertyAccessExpression(
+                                factory.createIdentifier("lekko_pb"),
+                                factory.createIdentifier(protoType),
+                              ),
+                              undefined,
+                              [],
+                            ),
+                          ),
+                        ],
+                        tsInstance.NodeFlags.Const,
+                      ),
+                    ),
+                    factory.createExpressionStatement(
+                      factory.createCallExpression(
+                        factory.createPropertyAccessExpression(
+                          factory.createIdentifier("config"),
+                          factory.createIdentifier("fromBinary"),
+                        ),
                         undefined,
-                        factory.createVariableDeclarationList(
-                          [
-                            factory.createVariableDeclaration(
-                              "config",
-                              undefined,
-                              undefined,
-                              factory.createNewExpression(
+                        [
+                          factory.createPropertyAccessExpression(
+                            // For JS SDK get calls need to be awaited
+                            maybeWrapAwait(
+                              factory.createCallExpression(
                                 factory.createPropertyAccessExpression(
-                                  factory.createIdentifier("lekko_pb"),
-                                  factory.createIdentifier(protoType),
+                                  target !== "node"
+                                    ? factory.createIdentifier("client")
+                                    : factory.createParenthesizedExpression(
+                                        factory.createAwaitExpression(
+                                          factory.createCallExpression(
+                                            factory.createPropertyAccessExpression(
+                                              factory.createIdentifier("lekko"),
+                                              factory.createIdentifier(
+                                                "getClient",
+                                              ),
+                                            ),
+                                            undefined,
+                                            [],
+                                          ),
+                                        ),
+                                      ),
+                                  factory.createIdentifier("getProto"),
                                 ),
                                 undefined,
-                                [],
-                              ),
-                            ),
-                          ],
-                          tsInstance.NodeFlags.Const,
-                        ),
-                      ),
-                      factory.createExpressionStatement(
-                        factory.createCallExpression(
-                          factory.createPropertyAccessExpression(
-                            factory.createIdentifier("config"),
-                            factory.createIdentifier("fromBinary"),
-                          ),
-                          undefined,
-                          [
-                            factory.createPropertyAccessExpression(
-                              // For JS SDK get calls need to be awaited
-                              maybeWrapAwait(
-                                factory.createCallExpression(
-                                  factory.createPropertyAccessExpression(
-                                    target !== "node"
-                                      ? factory.createIdentifier("client")
-                                      : factory.createParenthesizedExpression(
-                                          factory.createAwaitExpression(
-                                            factory.createCallExpression(
-                                              factory.createPropertyAccessExpression(
-                                                factory.createIdentifier(
-                                                  "lekko",
-                                                ),
-                                                factory.createIdentifier(
-                                                  "getClient",
-                                                ),
-                                              ),
-                                              undefined,
-                                              [],
-                                            ),
-                                          ),
-                                        ),
-                                    factory.createIdentifier("getProto"),
-                                  ),
-                                  undefined,
-                                  [
-                                    factory.createStringLiteral(namespace),
-                                    factory.createStringLiteral(configName),
-                                    factory.createCallExpression(
+                                [
+                                  factory.createStringLiteral(namespace),
+                                  factory.createStringLiteral(configName),
+                                  factory.createCallExpression(
+                                    factory.createPropertyAccessExpression(
                                       factory.createPropertyAccessExpression(
-                                        factory.createPropertyAccessExpression(
-                                          factory.createIdentifier("lekko"),
-                                          factory.createIdentifier(
-                                            "ClientContext",
-                                          ),
+                                        factory.createIdentifier("lekko"),
+                                        factory.createIdentifier(
+                                          "ClientContext",
                                         ),
-                                        factory.createIdentifier("fromJSON"),
                                       ),
-                                      undefined,
-                                      [factory.createIdentifier("ctx")],
+                                      factory.createIdentifier("fromJSON"),
                                     ),
-                                  ],
-                                ),
-                                target !== "node",
+                                    undefined,
+                                    [factory.createIdentifier("ctx")],
+                                  ),
+                                ],
                               ),
-                              factory.createIdentifier("value"),
+                              target !== "node",
                             ),
-                          ],
-                        ),
+                            factory.createIdentifier("value"),
+                          ),
+                        ],
                       ),
-                      factory.createReturnStatement(
-                        factory.createIdentifier("config"),
-                      ),
-                    ],
-                    true,
-                  ),
-                  factory.createCatchClause(
-                    factory.createVariableDeclaration(
-                      factory.createIdentifier("e"),
-                      undefined,
-                      undefined,
-                      undefined,
                     ),
-                    target !== "node"
-                      ? factory.createBlock(
-                          [
-                            factory.createThrowStatement(
-                              factory.createIdentifier("e"),
-                            ),
-                          ],
-                          true,
-                        )
-                      : node.body,
-                  ),
-                  undefined,
+                    factory.createReturnStatement(
+                      factory.createIdentifier("config"),
+                    ),
+                  ],
+                  true,
                 ),
-              ],
-              true,
+                node.body,
+              ),
             ),
           ),
+          // For use by FE SDKs to be able to identify configs
           factory.createExpressionStatement(
             factory.createBinaryExpression(
               factory.createPropertyAccessExpression(
@@ -418,6 +399,7 @@ export function transformer(
               undefined,
             ),
           ].concat(
+            // For FE, require client as second parameter
             target !== "node"
               ? [
                   factory.createParameterDeclaration(
@@ -432,90 +414,71 @@ export function transformer(
               : [],
           ),
           node.type,
-          factory.createBlock(
-            [
-              factory.createTryStatement(
-                factory.createBlock(
-                  [
-                    target !== "node"
-                      ? factory.createEmptyStatement()
-                      : factory.createExpressionStatement(
-                          factory.createAwaitExpression(
-                            factory.createCallExpression(
-                              // TODO -- this should be top level.. but ts module build shit is horrible
-                              factory.createPropertyAccessExpression(
-                                factory.createIdentifier("lekko"),
-                                factory.createIdentifier("setupClient"),
-                              ),
-                              undefined,
-                              [],
+          prependParamVars(
+            node,
+            "ctx",
+            wrapTryCatch(
+              factory.createBlock(
+                [
+                  target !== "node"
+                    ? factory.createEmptyStatement()
+                    : factory.createExpressionStatement(
+                        factory.createAwaitExpression(
+                          factory.createCallExpression(
+                            // TODO -- this should be top level.. but ts module build shit is horrible
+                            factory.createPropertyAccessExpression(
+                              factory.createIdentifier("lekko"),
+                              factory.createIdentifier("setupClient"),
                             ),
+                            undefined,
+                            [],
                           ),
-                        ),
-                    factory.createReturnStatement(
-                      factory.createAwaitExpression(
-                        factory.createCallExpression(
-                          factory.createPropertyAccessExpression(
-                            target !== "node"
-                              ? factory.createIdentifier("client")
-                              : factory.createParenthesizedExpression(
-                                  factory.createAwaitExpression(
-                                    factory.createCallExpression(
-                                      factory.createPropertyAccessExpression(
-                                        factory.createIdentifier("lekko"),
-                                        factory.createIdentifier("getClient"),
-                                      ),
-                                      undefined,
-                                      [],
-                                    ),
-                                  ),
-                                ),
-                            factory.createIdentifier(getter),
-                          ),
-                          undefined,
-                          [
-                            factory.createStringLiteral(namespace),
-                            factory.createStringLiteral(configName),
-                            factory.createCallExpression(
-                              factory.createPropertyAccessExpression(
-                                factory.createPropertyAccessExpression(
-                                  factory.createIdentifier("lekko"),
-                                  factory.createIdentifier("ClientContext"),
-                                ),
-                                factory.createIdentifier("fromJSON"),
-                              ),
-                              undefined,
-                              [factory.createIdentifier("ctx")],
-                            ),
-                          ],
                         ),
                       ),
-                    ),
-                  ],
-                  true,
-                ),
-                factory.createCatchClause(
-                  factory.createVariableDeclaration(
-                    factory.createIdentifier("e"),
-                    undefined,
-                    undefined,
-                    undefined,
-                  ),
-                  target !== "node"
-                    ? factory.createBlock(
+                  factory.createReturnStatement(
+                    factory.createAwaitExpression(
+                      factory.createCallExpression(
+                        factory.createPropertyAccessExpression(
+                          target !== "node"
+                            ? factory.createIdentifier("client")
+                            : factory.createParenthesizedExpression(
+                                factory.createAwaitExpression(
+                                  factory.createCallExpression(
+                                    factory.createPropertyAccessExpression(
+                                      factory.createIdentifier("lekko"),
+                                      factory.createIdentifier("getClient"),
+                                    ),
+                                    undefined,
+                                    [],
+                                  ),
+                                ),
+                              ),
+                          factory.createIdentifier(getter),
+                        ),
+                        undefined,
                         [
-                          factory.createThrowStatement(
-                            factory.createIdentifier("e"),
+                          factory.createStringLiteral(namespace),
+                          factory.createStringLiteral(configName),
+                          factory.createCallExpression(
+                            factory.createPropertyAccessExpression(
+                              factory.createPropertyAccessExpression(
+                                factory.createIdentifier("lekko"),
+                                factory.createIdentifier("ClientContext"),
+                              ),
+                              factory.createIdentifier("fromJSON"),
+                            ),
+                            undefined,
+                            [factory.createIdentifier("ctx")],
                           ),
                         ],
-                        true,
-                      )
-                    : node.body,
-                ),
-                undefined,
+                      ),
+                    ),
+                  ),
+                ],
+                true,
               ),
-            ],
-            true,
+              node.body,
+            ),
           ),
         ),
         factory.createExpressionStatement(
@@ -549,6 +512,55 @@ export function transformer(
           ),
         ),
       ];
+    }
+
+    // Prepend the given body with a variable assignment to make the function's parameters available
+    // in the body. No-op if there was no parameter to start.
+    // i.e. adds `const { env } = ctx` to start
+    function prependParamVars(
+      fd: ts.FunctionDeclaration,
+      newParamName: string,
+      body: ts.Block,
+    ): ts.Block {
+      // Get original first parameter to function
+      const param = fd.parameters[0]?.getChildAt(0); // GetChild for discarding type info
+      if (param === undefined) {
+        return body;
+      }
+      return factory.createBlock([
+        factory.createVariableStatement(
+          undefined,
+          factory.createVariableDeclarationList([
+            factory.createVariableDeclaration(
+              // This is technically probably not a good way to destructure
+              param.getFullText(),
+              undefined,
+              undefined,
+              factory.createIdentifier(newParamName),
+            ),
+          ]),
+        ),
+        ...body.statements,
+      ]);
+    }
+
+    // Use for handling static fallback
+    function wrapTryCatch(tryBlock: ts.Block, catchBlock: ts.Block): ts.Block {
+      return factory.createBlock([
+        factory.createTryStatement(
+          tryBlock,
+          factory.createCatchClause(
+            factory.createVariableDeclaration(
+              factory.createIdentifier("e"),
+              undefined,
+              undefined,
+              undefined,
+            ),
+            catchBlock,
+          ),
+          undefined,
+        ),
+      ]);
     }
 
     function addLekkoImports(sourceFile: ts.SourceFile): ts.SourceFile {
