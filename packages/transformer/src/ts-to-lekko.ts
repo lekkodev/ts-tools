@@ -16,9 +16,32 @@ import {
   type LekkoConfigJSONTree,
   type LekkoConfigJSONValue,
   type LekkoConfigType,
+  type LekkoComparisonOperator,
+  type LekkoLogicalOperator,
 } from "./types";
 import { isIntrinsicType } from "./helpers";
 import { rimrafSync } from "rimraf";
+
+const COMPARISON_TOKEN_TO_OPERATOR: Partial<
+  Record<ts.SyntaxKind, LekkoComparisonOperator>
+> = {
+  [ts.SyntaxKind.EqualsEqualsEqualsToken]: "COMPARISON_OPERATOR_EQUALS",
+  [ts.SyntaxKind.LessThanToken]: "COMPARISON_OPERATOR_LESS_THAN",
+  [ts.SyntaxKind.LessThanEqualsToken]:
+    "COMPARISON_OPERATOR_LESS_THAN_OR_EQUALS",
+  [ts.SyntaxKind.GreaterThanToken]: "COMPARISON_OPERATOR_GREATER_THAN",
+  [ts.SyntaxKind.GreaterThanEqualsToken]:
+    "COMPARISON_OPERATOR_GREATER_THAN_OR_EQUALS",
+  [ts.SyntaxKind.ExclamationEqualsEqualsToken]:
+    "COMPARISON_OPERATOR_NOT_EQUALS",
+};
+
+const LOGICAL_TOKEN_TO_OPERATOR: Partial<
+  Record<ts.SyntaxKind, LekkoLogicalOperator>
+> = {
+  [ts.SyntaxKind.AmpersandAmpersandToken]: "LOGICAL_OPERATOR_AND",
+  [ts.SyntaxKind.BarBarToken]: "LOGICAL_OPERATOR_OR",
+};
 
 function exprToContextKey(expr: ts.Expression): string {
   switch (expr.kind) {
@@ -35,32 +58,32 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
   switch (expression.kind) {
     case ts.SyntaxKind.BinaryExpression: {
       const binaryExpr = expression as ts.BinaryExpression;
-      switch (binaryExpr.operatorToken.kind) {
-        case ts.SyntaxKind.EqualsEqualsEqualsToken:
-          return {
-            atom: {
-              contextKey: exprToContextKey(binaryExpr.left),
-              comparisonValue: expressionToJsonValue(binaryExpr.right) as
-                | boolean
-                | string
-                | number,
-              comparisonOperator: "COMPARISON_OPERATOR_EQUALS",
-            },
-          };
-        case ts.SyntaxKind.AmpersandAmpersandToken:
-          return {
-            logicalExpression: {
-              rules: [
-                expressionToThing(binaryExpr.left),
-                expressionToThing(binaryExpr.right),
-              ],
-              logicalOperator: "LOGICAL_OPERATOR_AND",
-            },
-          };
-        default:
-          throw new Error(
-            `need to be able to handle: ${ts.SyntaxKind[binaryExpr.operatorToken.kind]}`,
-          );
+      const tokenKind = binaryExpr.operatorToken.kind;
+      if (tokenKind in COMPARISON_TOKEN_TO_OPERATOR) {
+        return {
+          atom: {
+            contextKey: exprToContextKey(binaryExpr.left),
+            comparisonValue: expressionToJsonValue(binaryExpr.right) as
+              | boolean
+              | string
+              | number,
+            comparisonOperator: COMPARISON_TOKEN_TO_OPERATOR[tokenKind]!,
+          },
+        };
+      } else if (tokenKind in LOGICAL_TOKEN_TO_OPERATOR) {
+        return {
+          logicalExpression: {
+            rules: [
+              expressionToThing(binaryExpr.left),
+              expressionToThing(binaryExpr.right),
+            ],
+            logicalOperator: LOGICAL_TOKEN_TO_OPERATOR[tokenKind]!,
+          },
+        };
+      } else {
+        throw new Error(
+          `Operator ${ts.SyntaxKind[binaryExpr.operatorToken.kind]} is currently not supported`,
+        );
       }
     }
     case ts.SyntaxKind.ParenthesizedExpression: {

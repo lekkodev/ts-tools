@@ -31,7 +31,13 @@ export type LekkoLogicalOperator =
   | "LOGICAL_OPERATOR_OR";
 
 // TODO: Other comparators
-export type LekkoComparisonOperator = "COMPARISON_OPERATOR_EQUALS";
+export type LekkoComparisonOperator =
+  | "COMPARISON_OPERATOR_EQUALS"
+  | "COMPARISON_OPERATOR_LESS_THAN"
+  | "COMPARISON_OPERATOR_LESS_THAN_OR_EQUALS"
+  | "COMPARISON_OPERATOR_GREATER_THAN"
+  | "COMPARISON_OPERATOR_GREATER_THAN_OR_EQUALS"
+  | "COMPARISON_OPERATOR_NOT_EQUALS";
 
 export type LekkoConfigType =
   | "FEATURE_TYPE_BOOL"

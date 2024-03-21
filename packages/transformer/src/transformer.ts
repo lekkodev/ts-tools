@@ -23,6 +23,9 @@ import {
 import { patchCompilerHost, patchProgram } from "./patch";
 import { emitEnvVars } from "./emit-env-vars";
 
+const CONFIG_IDENTIFIER_NAME = "_config";
+const CTX_IDENTIFIER_NAME = "_ctx";
+
 export default function transformProgram(
   program: ts.Program,
   host?: ts.CompilerHost,
@@ -234,7 +237,7 @@ export function transformer(
               factory.createParameterDeclaration(
                 undefined,
                 undefined,
-                factory.createIdentifier("ctx"),
+                factory.createIdentifier(CTX_IDENTIFIER_NAME),
                 undefined,
                 undefined,
                 undefined,
@@ -257,7 +260,7 @@ export function transformer(
             node.type,
             prependParamVars(
               node,
-              "ctx",
+              CTX_IDENTIFIER_NAME,
               wrapTryCatch(
                 factory.createBlock(
                   [
@@ -266,7 +269,7 @@ export function transformer(
                       factory.createVariableDeclarationList(
                         [
                           factory.createVariableDeclaration(
-                            "config",
+                            CONFIG_IDENTIFIER_NAME,
                             undefined,
                             undefined,
                             factory.createNewExpression(
@@ -285,7 +288,7 @@ export function transformer(
                     factory.createExpressionStatement(
                       factory.createCallExpression(
                         factory.createPropertyAccessExpression(
-                          factory.createIdentifier("config"),
+                          factory.createIdentifier(CONFIG_IDENTIFIER_NAME),
                           factory.createIdentifier("fromBinary"),
                         ),
                         undefined,
@@ -328,7 +331,11 @@ export function transformer(
                                       factory.createIdentifier("fromJSON"),
                                     ),
                                     undefined,
-                                    [factory.createIdentifier("ctx")],
+                                    [
+                                      factory.createIdentifier(
+                                        CTX_IDENTIFIER_NAME,
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -340,7 +347,7 @@ export function transformer(
                       ),
                     ),
                     factory.createReturnStatement(
-                      factory.createIdentifier("config"),
+                      factory.createIdentifier(CONFIG_IDENTIFIER_NAME),
                     ),
                   ],
                   true,
@@ -393,7 +400,7 @@ export function transformer(
             factory.createParameterDeclaration(
               undefined,
               undefined,
-              "ctx",
+              CTX_IDENTIFIER_NAME,
               undefined,
               undefined,
               undefined,
@@ -416,7 +423,7 @@ export function transformer(
           node.type,
           prependParamVars(
             node,
-            "ctx",
+            CTX_IDENTIFIER_NAME,
             wrapTryCatch(
               factory.createBlock(
                 [
@@ -468,7 +475,7 @@ export function transformer(
                               factory.createIdentifier("fromJSON"),
                             ),
                             undefined,
-                            [factory.createIdentifier("ctx")],
+                            [factory.createIdentifier(CTX_IDENTIFIER_NAME)],
                           ),
                         ],
                       ),
