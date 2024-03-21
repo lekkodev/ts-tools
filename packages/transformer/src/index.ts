@@ -5,6 +5,7 @@ import ts from "typescript";
 import { program } from "commander";
 import transformProgram, { transformer } from "./transformer";
 import * as helpers from "./helpers";
+import { emitEnvVars } from "./emit-env-vars";
 
 if (require.main === module) {
   program
@@ -38,4 +39,4 @@ if (require.main === module) {
 
 export default transformProgram;
 
-export { helpers, transformer };
+export { helpers, transformer, emitEnvVars };

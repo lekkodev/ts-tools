@@ -1,7 +1,7 @@
 import { type Rollup, type Plugin, type PluginOption } from "vite";
 import path from "node:path";
 import ts from "typescript";
-import transformProgram, { helpers } from "@lekko/ts-transformer";
+import transformProgram, { helpers, emitEnvVars } from "@lekko/ts-transformer";
 
 // TODO: We should allow users to specify location
 // **/lekko/<namespace>.ts, namespace must be kebab-case alphanumeric
@@ -24,6 +24,16 @@ export interface LekkoViteOptions {
    * Defaults to ./src/lekko.
    */
   configSrcPath?: string;
+  /**
+   * Whether to emit Lekko-related environment variables to a .env file to be
+   * available in the bundled application. Depends on a logged in user in the
+   * local Lekko CLI installation, otherwise will be a no-op.
+   *
+   * Defaults to true, and writes variables to .env.
+   *
+   * Pass in a string to use an alternative env var file (e.g. .env.production).
+   */
+  emitEnv?: boolean | string;
 }
 
 // TODO: Investigate if this can be a compatible Rollup plugin instead
@@ -32,6 +42,7 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
     apply,
     tsconfigPath = "./tsconfig.json",
     configSrcPath = "./src/lekko",
+    emitEnv = true,
   } = options;
 
   // Parse tsconfig
@@ -55,6 +66,16 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
 
   let tsProgram: ts.Program | undefined;
 
+  // Need to emit here instead of buildStart because env vars are resolved
+  // before the `configResolved` hook
+  if (emitEnv) {
+    try {
+      emitEnvVars("vite", typeof emitEnv === "string" ? emitEnv : undefined);
+    } catch (e) {
+      console.warn("[vite-plugin-lekko-typescript]", (e as Error).message);
+    }
+  }
+
   return {
     name: "vite-plugin-lekko-typescript",
     enforce: "pre",
@@ -69,7 +90,12 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
       tsProgram = transformProgram.default(
         tsProgram,
         undefined,
-        { noStatic: true, configSrcPath },
+        {
+          target: "vite",
+          // Already being emitted above during init
+          emitEnv: false,
+          configSrcPath,
+        },
         { ts },
       );
     },

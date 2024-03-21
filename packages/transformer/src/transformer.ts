@@ -21,6 +21,7 @@ import {
   genStarlark,
 } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
+import { emitEnvVars } from "./emit-env-vars";
 
 export default function transformProgram(
   program: ts.Program,
@@ -28,7 +29,11 @@ export default function transformProgram(
   pluginConfig?: LekkoTransformerOptions,
   extras?: ProgramTransformerExtras,
 ) {
-  const { configSrcPath = "./src/lekko" } = pluginConfig ?? {};
+  const {
+    configSrcPath = "./src/lekko",
+    emitEnv = true,
+    target = "node",
+  } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
 
   checkCLIDeps();
@@ -118,6 +123,15 @@ export default function transformProgram(
   // Patch updated program to cleanly handle diagnostics and such
   patchProgram(updatedProgram);
 
+  // Emit env vars
+  if (emitEnv) {
+    try {
+      emitEnvVars(target, typeof emitEnv === "string" ? emitEnv : undefined);
+    } catch (e) {
+      console.warn("[@lekko/ts-transformer]", (e as Error).message);
+    }
+  }
+
   return updatedProgram;
 }
 
@@ -127,6 +141,7 @@ export function transformer(
   extras?: TransformerExtras,
 ) {
   const tsInstance = extras?.ts ?? ts;
+  const { target = "node" } = pluginConfig ?? {};
 
   checkCLIDeps();
 
@@ -225,7 +240,7 @@ export function transformer(
                 undefined,
               ),
             ].concat(
-              pluginConfig?.noStatic
+              target !== "node"
                 ? [
                     factory.createParameterDeclaration(
                       undefined,
@@ -278,7 +293,7 @@ export function transformer(
                               maybeWrapAwait(
                                 factory.createCallExpression(
                                   factory.createPropertyAccessExpression(
-                                    pluginConfig?.noStatic
+                                    target !== "node"
                                       ? factory.createIdentifier("client")
                                       : factory.createParenthesizedExpression(
                                           factory.createAwaitExpression(
@@ -317,7 +332,7 @@ export function transformer(
                                     ),
                                   ],
                                 ),
-                                pluginConfig?.noStatic,
+                                target !== "node",
                               ),
                               factory.createIdentifier("value"),
                             ),
@@ -337,7 +352,7 @@ export function transformer(
                       undefined,
                       undefined,
                     ),
-                    pluginConfig?.noStatic
+                    target !== "node"
                       ? factory.createBlock(
                           [
                             factory.createThrowStatement(
@@ -403,7 +418,7 @@ export function transformer(
               undefined,
             ),
           ].concat(
-            pluginConfig?.noStatic
+            target !== "node"
               ? [
                   factory.createParameterDeclaration(
                     undefined,
@@ -422,7 +437,7 @@ export function transformer(
               factory.createTryStatement(
                 factory.createBlock(
                   [
-                    pluginConfig?.noStatic
+                    target !== "node"
                       ? factory.createEmptyStatement()
                       : factory.createExpressionStatement(
                           factory.createAwaitExpression(
@@ -441,7 +456,7 @@ export function transformer(
                       factory.createAwaitExpression(
                         factory.createCallExpression(
                           factory.createPropertyAccessExpression(
-                            pluginConfig?.noStatic
+                            target !== "node"
                               ? factory.createIdentifier("client")
                               : factory.createParenthesizedExpression(
                                   factory.createAwaitExpression(
@@ -486,7 +501,7 @@ export function transformer(
                     undefined,
                     undefined,
                   ),
-                  pluginConfig?.noStatic
+                  target !== "node"
                     ? factory.createBlock(
                         [
                           factory.createThrowStatement(
@@ -546,7 +561,7 @@ export function transformer(
             factory.createNamespaceImport(factory.createIdentifier("lekko")),
           ),
           factory.createStringLiteral(
-            pluginConfig?.noStatic ? "@lekko/js-sdk" : "@lekko/node-server-sdk",
+            target !== "node" ? "@lekko/js-sdk" : "@lekko/node-server-sdk",
           ),
           undefined,
         ),

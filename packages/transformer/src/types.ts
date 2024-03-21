@@ -10,8 +10,21 @@ export interface LekkoTransformerOptions extends PluginConfig {
    * Lekko configs. Should be a flat directory. Defaults to ./src/lekko.
    */
   configSrcPath?: string;
-  noStatic?: boolean;
+  /**
+   * Target execution environment for transformation. Note that different
+   * targets result in different SDK code and environment variables being used.
+   * Defaults to `node`.
+   */
+  target?: "node" | "vite";
+  /**
+   * Whether to emit/update .env with relevant environment variables for Lekko.
+   * Defaults to true. If a string is passed, it will be interpreted as an
+   * alternative filename (e.g. .env.development).
+   */
+  emitEnv?: boolean | string;
 }
+
+export type TransformerTarget = "node" | "vite";
 
 export type LekkoLogicalOperator =
   | "LOGICAL_OPERATOR_AND"
