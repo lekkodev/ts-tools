@@ -39,7 +39,10 @@ export default function transformProgram(
   } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
 
+  console.log(process.env.LEKKO_API_KEY)
+
   checkCLIDeps();
+  console.log("WILL IT LOG??")
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
   const repoPath = path.join(
     os.homedir(),
@@ -160,6 +163,7 @@ export function transformer(
 
   return (context: ts.TransformationContext) => {
     const { factory } = context;
+    let hasImportProto = false;
 
     function maybeWrapAwait(expr: ts.Expression, cond?: boolean) {
       return cond ? factory.createAwaitExpression(expr) : expr;
@@ -212,8 +216,11 @@ export function transformer(
       if (getter === "getProto") {
         const protoTypeParts = config.tree.default["@type"].split(".");
         const protoType = protoTypeParts[protoTypeParts.length - 1];
-        return [
-          factory.createImportDeclaration(
+        var protoImport;
+        console.log("FUCK LIFE")
+        if (!hasImportProto) {
+          console.log("IMPORTING FUCKING ONCE");
+          protoImport = factory.createImportDeclaration(
             undefined,
             factory.createImportClause(
               false,
@@ -226,7 +233,13 @@ export function transformer(
               `./gen/${namespace}/config/v1beta1/${namespace}_pb.js`,
             ),
             undefined,
-          ),
+          );
+          hasImportProto = true;
+        } else {
+          protoImport = factory.createEmptyStatement();
+        }
+        return [
+          protoImport,
           factory.updateFunctionDeclaration(
             node,
             node.modifiers,

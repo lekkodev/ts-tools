@@ -20,7 +20,7 @@ import {
   type LekkoLogicalOperator,
 } from "./types";
 import { isIntrinsicType } from "./helpers";
-import { rimrafSync } from "rimraf";
+//import { rimrafSync } from "rimraf";
 
 const COMPARISON_TOKEN_TO_OPERATOR: Partial<
   Record<ts.SyntaxKind, LekkoComparisonOperator>
@@ -544,6 +544,7 @@ export function genProtoFile(
  * This is a generator function - it can be reentered to trigger cleanup logic.
  */
 export function* genProtoBindings(repoPath: string, namespace: string) {
+  console.log("Fuck proto");
   // Put in temp location to avoid polluting project and for known cleanup
   // e.g. /tmp/lekko-abcdef/gen/<namespace>/config/v1beta1/<namespace>.proto
   const outputPath = fs.mkdtempSync(path.join(os.tmpdir(), "lekko-"));
@@ -609,5 +610,5 @@ export function* genProtoBindings(repoPath: string, namespace: string) {
   yield files;
 
   // Clean up generated bindings
-  rimrafSync(outputPath);
+  //rimrafSync(outputPath);
 }
