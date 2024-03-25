@@ -624,6 +624,7 @@ export function transformer(
 
             // The following are per-file operations
             /*
+            // TODO this needs to be a no-op if the tools aren't there
             genProtoFile(sourceFile, repoPath, protoFileBuilder);
             configs.forEach((config) =>
               genStarlark(repoPath, namespace, config),
