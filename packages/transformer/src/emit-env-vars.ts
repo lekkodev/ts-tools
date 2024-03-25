@@ -23,14 +23,14 @@ function getVarsFromCLI(
     // TODO: Differentiate between missing or other reasons
     throw new Error("failed to read API key");
   }
-  const apiKey = apiKeyCmd.stdout;
+  const apiKey = apiKeyCmd.stdout.trim();
 
   const repoCmd = spawnSync("lekko", ["repo", "remote"], { encoding: "utf-8" });
   if (repoCmd.error !== undefined || repoCmd.status !== 0) {
     // TODO: Differentiate between missing or other reasons
     throw new Error("failed to read repo name");
   }
-  const repoName = repoCmd.stdout;
+  const repoName = repoCmd.stdout.trim();
 
   if (target === "node") {
     return {
@@ -45,6 +45,7 @@ function getVarsFromCLI(
       VITE_LEKKO_REPOSITORY_NAME: name,
     };
   }
+  // TODO: Add Next env vars support
 }
 
 // For now, assumes that all env var files will be located at project root.
