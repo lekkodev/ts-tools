@@ -16,9 +16,9 @@ import {
   checkCLIDeps,
   interfaceToProto,
   genProtoBindings,
-  genProtoFile,
+  //genProtoFile,
   functionToConfigJSON,
-  genStarlark,
+  //genStarlark,
 } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
 import { emitEnvVars } from "./emit-env-vars";
@@ -39,7 +39,7 @@ export default function transformProgram(
   } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
 
-  checkCLIDeps();
+  // checkCLIDeps();
 
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
   const repoPath = path.join(
@@ -84,6 +84,7 @@ export default function transformProgram(
   ).transformed;
 
   // Then, we need to generate proto bindings and add the generated + transformed source files to the program
+  
   const printer = tsInstance.createPrinter();
   transformedSources.forEach((sourceFile) => {
     const namespace = path.basename(
@@ -116,7 +117,7 @@ export default function transformProgram(
       genIter.next();
     }
   });
-
+  
   // We need to add these bindings to the program
   const updatedProgram = tsInstance.createProgram(
     [...rootFileNames, ...sfCache.keys()],
@@ -150,12 +151,11 @@ export function transformer(
   try {
     checkCLIDeps();
   } catch (e){
-    if (!process.env.LEKKO_API_KEY) {
-      throw e
-    }
+    console.warn("lekko not found, attempting anyways.")
   }
 
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
+  // @ts-ignore
   let repoPath = path.join(
     os.homedir(),
     "Library/Application Support/Lekko/Config Repositories/default/",
@@ -623,11 +623,12 @@ export function transformer(
             );
 
             // The following are per-file operations
+            /*
             genProtoFile(sourceFile, repoPath, protoFileBuilder);
             configs.forEach((config) =>
               genStarlark(repoPath, namespace, config),
             );
-
+            */
             return transformed;
           } else {
             return node;
@@ -642,7 +643,9 @@ export function transformer(
           // Build proto definitions from interfaces
           interfaceToProto(node, checker, protoFileBuilder);
           // Remove declarations - to be replaced with proto bindings
-          return undefined;
+
+          // wat??
+          return node;
         }
         return node;
       }
