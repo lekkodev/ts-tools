@@ -39,10 +39,10 @@ export default function transformProgram(
   } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
 
-  console.log(process.env.LEKKO_API_KEY)
+  console.log(process.env.LEKKO_API_KEY);
 
   checkCLIDeps();
-  console.log("WILL IT LOG??")
+  console.log("WILL IT LOG??");
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
   const repoPath = path.join(
     os.homedir(),
@@ -216,30 +216,27 @@ export function transformer(
       if (getter === "getProto") {
         const protoTypeParts = config.tree.default["@type"].split(".");
         const protoType = protoTypeParts[protoTypeParts.length - 1];
-        var protoImport;
-        console.log("FUCK LIFE")
+        const maybeProtoImport: ts.Node[] = [];
         if (!hasImportProto) {
-          console.log("IMPORTING FUCKING ONCE");
-          protoImport = factory.createImportDeclaration(
-            undefined,
-            factory.createImportClause(
-              false,
+          maybeProtoImport.push(
+            factory.createImportDeclaration(
               undefined,
-              factory.createNamespaceImport(
-                factory.createIdentifier("lekko_pb"),
+              factory.createImportClause(
+                false,
+                undefined,
+                factory.createNamespaceImport(
+                  factory.createIdentifier("lekko_pb"),
+                ),
               ),
+              factory.createStringLiteral(
+                `./gen/${namespace}/config/v1beta1/${namespace}_pb.js`,
+              ),
+              undefined,
             ),
-            factory.createStringLiteral(
-              `./gen/${namespace}/config/v1beta1/${namespace}_pb.js`,
-            ),
-            undefined,
           );
           hasImportProto = true;
-        } else {
-          protoImport = factory.createEmptyStatement();
         }
-        return [
-          protoImport,
+        return maybeProtoImport.concat([
           factory.updateFunctionDeclaration(
             node,
             node.modifiers,
@@ -400,7 +397,7 @@ export function transformer(
               factory.createStringLiteral(config.type),
             ),
           ),
-        ];
+        ]);
       }
       return [
         factory.updateFunctionDeclaration(

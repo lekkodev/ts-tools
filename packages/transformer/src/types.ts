@@ -15,7 +15,7 @@ export interface LekkoTransformerOptions extends PluginConfig {
    * targets result in different SDK code and environment variables being used.
    * Defaults to `node`.
    */
-  target?: "node" | "vite";
+  target?: TransformerTarget;
   /**
    * Whether to emit/update .env with relevant environment variables for Lekko.
    * Defaults to true. If a string is passed, it will be interpreted as an
@@ -24,7 +24,7 @@ export interface LekkoTransformerOptions extends PluginConfig {
   emitEnv?: boolean | string;
 }
 
-export type TransformerTarget = "node" | "vite";
+export type TransformerTarget = "node" | "vite" | "next";
 
 export type LekkoLogicalOperator =
   | "LOGICAL_OPERATOR_AND"

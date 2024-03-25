@@ -1,7 +1,6 @@
 import ts from "typescript";
 import transformProgram from "@lekko/ts-transformer";
 
-
 module.exports = function (source: string) {
   /*
   // Parse tsconfig
@@ -21,8 +20,8 @@ module.exports = function (source: string) {
   */
 
   // @ts-ignore
-  console.log(this.resource);
-  console.log(source);
+  console.log("dbg// loader resource", this.resource);
+  // console.log(source);
   // @ts-ignore
   let tsProgram = ts.createProgram([this.resource], {
     undefined,
@@ -32,24 +31,23 @@ module.exports = function (source: string) {
     tsProgram,
     undefined,
     {
-      // @ts-ignore
       target: "next",
-      // Already being emitted above during init
       emitEnv: false,
       //configSrcPath,
     },
     { ts },
   );
-  // @ts-ignore
-  console.log(tsProgram?.getSourceFile(this.resource)?.getFullText());
+  // console.log(
+  //   "dbg// loader transformed",
+  //   // @ts-ignore
+  //   tsProgram?.getSourceFile(this.resource)?.getFullText(),
+  // );
   // @ts-ignore
   return tsProgram?.getSourceFile(this.resource)?.getFullText();
   //const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest);
 
-   // @ts-ignore
+  // @ts-ignore
   //const transformed = ts.transform(sourceFile, [  transformer ]);
 
-
   //return transformed
-
-}
+};

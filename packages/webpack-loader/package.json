@@ -1,16 +1,16 @@
 {
   "name": "@lekko/webpack-loader",
-  "version": "0.0.0.1",
+  "version": "0.0.1",
   "description": "",
   "main": "dist/index.js",
   "peerDependencies": {
-    "typescript": ">=5",
-    "vite": ">=4"
+    "typescript": ">=5"
   },
   "devDependencies": {
     "typescript": "^5.4.2"
   },
   "dependencies": {
+    "@lekko/ts-transformer": ">=0.0.0-beta-1"
   },
   "scripts": {
     "build": "rm -rf dist/ && tsc",
