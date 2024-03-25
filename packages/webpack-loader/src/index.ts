@@ -20,7 +20,7 @@ module.exports = function (source: string) {
   */
 
   // @ts-ignore
-  console.log("dbg// loader resource", this.resource);
+  //console.log("dbg// loader resource", this.resource);
   // console.log(source);
   // @ts-ignore
   let tsProgram = ts.createProgram([this.resource], {

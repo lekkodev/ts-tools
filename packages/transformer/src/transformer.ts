@@ -233,7 +233,7 @@ export function transformer(
                 ),
               ),
               factory.createStringLiteral(
-                `./gen/${namespace}/config/v1beta1/${namespace}_pb.js`,
+                `./gen/${namespace}/config/v1beta1/${namespace}_pb.ts`,
               ),
               undefined,
             ),
