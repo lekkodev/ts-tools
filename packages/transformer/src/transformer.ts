@@ -39,10 +39,8 @@ export default function transformProgram(
   } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
 
-  console.log(process.env.LEKKO_API_KEY);
-
   checkCLIDeps();
-  console.log("WILL IT LOG??");
+
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
   const repoPath = path.join(
     os.homedir(),
@@ -149,7 +147,13 @@ export function transformer(
   const tsInstance = extras?.ts ?? ts;
   const { target = "node" } = pluginConfig ?? {};
 
-  checkCLIDeps();
+  try {
+    checkCLIDeps();
+  } catch (e){
+    if (!process.env.LEKKO_API_KEY) {
+      throw e
+    }
+  }
 
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
   let repoPath = path.join(

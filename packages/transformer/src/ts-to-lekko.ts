@@ -4,7 +4,6 @@ import camelCase from "lodash.camelcase";
 import kebabCase from "lodash.kebabcase";
 import snakeCase from "lodash.snakecase";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import ts, { type TypeChecker } from "typescript";
 import {
@@ -544,10 +543,10 @@ export function genProtoFile(
  * This is a generator function - it can be reentered to trigger cleanup logic.
  */
 export function* genProtoBindings(repoPath: string, namespace: string) {
-  console.log("Fuck proto");
   // Put in temp location to avoid polluting project and for known cleanup
   // e.g. /tmp/lekko-abcdef/gen/<namespace>/config/v1beta1/<namespace>.proto
-  const outputPath = fs.mkdtempSync(path.join(os.tmpdir(), "lekko-"));
+  // @ts-ignore
+  const outputPath = path.join(process.env.npm_config_local_prefix, "src/lekko/"); //fs.mkdtempSync(path.join(os.tmpdir(), "lekko-"));
   const protoPath = getProtoPath(repoPath, namespace);
 
   if (!fs.existsSync(protoPath)) {
@@ -583,6 +582,7 @@ export function* genProtoBindings(repoPath: string, namespace: string) {
       encoding: "utf-8",
     },
   );
+
   if (cmd.error !== undefined || cmd.status !== 0) {
     throw new Error("Failed to generate proto bindings");
   }
