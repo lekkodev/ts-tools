@@ -16,9 +16,9 @@ import {
   checkCLIDeps,
   interfaceToProto,
   genProtoBindings,
-  //genProtoFile,
+  genProtoFile,
   functionToConfigJSON,
-  //genStarlark,
+  genStarlark,
 } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
 import { emitEnvVars } from "./emit-env-vars";
@@ -38,8 +38,6 @@ export default function transformProgram(
     target = "node",
   } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
-
-  // checkCLIDeps();
 
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
   const repoPath = path.join(
@@ -622,14 +620,16 @@ export function transformer(
               context,
             );
 
+            try {
             // The following are per-file operations
-            /*
+            checkCLIDeps();
             // TODO this needs to be a no-op if the tools aren't there
             genProtoFile(sourceFile, repoPath, protoFileBuilder);
-            configs.forEach((config) =>
-              genStarlark(repoPath, namespace, config),
+            configs.forEach((config) => genStarlark(repoPath, namespace, config),
             );
-            */
+            } catch {
+              console.log("CLI tools missing, skipping proto and starlark generation.")
+            }
             return transformed;
           } else {
             return node;
@@ -645,8 +645,7 @@ export function transformer(
           interfaceToProto(node, checker, protoFileBuilder);
           // Remove declarations - to be replaced with proto bindings
 
-          // wat??
-          return node;
+          return undefined;
         }
         return node;
       }
