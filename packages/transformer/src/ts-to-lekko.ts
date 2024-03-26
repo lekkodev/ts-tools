@@ -1,7 +1,6 @@
 import assert from "assert";
 import { spawnSync } from "child_process";
 import camelCase from "lodash.camelcase";
-import kebabCase from "lodash.kebabcase";
 import snakeCase from "lodash.snakecase";
 import fs from "node:fs";
 import path from "node:path";
@@ -18,8 +17,9 @@ import {
   type LekkoComparisonOperator,
   type LekkoLogicalOperator,
 } from "./types";
-import { isIntrinsicType } from "./helpers";
 //import { rimrafSync } from "rimraf";
+import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
+
 
 const COMPARISON_TOKEN_TO_OPERATOR: Partial<
   Record<ts.SyntaxKind, LekkoComparisonOperator>
@@ -204,26 +204,12 @@ function getLekkoType(
  * Creates a JSON representation of a Lekko config from a function declaration.
  */
 export function functionToConfigJSON(
-  node: ts.FunctionDeclaration,
+  node: CheckedFunctionDeclaration,
   checker: ts.TypeChecker,
   namespace: string,
+  configKey: string,
+  returnType: ts.Type,
 ): LekkoConfigJSON {
-  if (node.name === undefined) {
-    throw new Error("Unparsable function name");
-  }
-  const getterName = node.name.escapedText.toString();
-  if (!/^\s*get[A-Z][A-Za-z]*$/.test(getterName)) {
-    throw new Error(`Unparsable function name: "${getterName}"`);
-  }
-  const sig = checker.getSignatureFromDeclaration(node);
-  assert(sig);
-
-  const configKey = kebabCase(getterName.substring(3));
-
-  const returnType = checker.getPromisedTypeOfPromise(sig.getReturnType());
-
-  assert(returnType, "Return type of config functions must be a Promise");
-
   // TODO support nested interfaces
   const configType = getLekkoType(returnType, checker);
 

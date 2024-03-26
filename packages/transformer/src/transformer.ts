@@ -11,7 +11,12 @@ import {
   type LekkoConfigJSON,
   type LekkoTransformerOptions,
 } from "./types";
-import { LEKKO_FILENAME_REGEX, isLekkoConfigFile } from "./helpers";
+import {
+  type CheckedFunctionDeclaration,
+  LEKKO_FILENAME_REGEX,
+  isCheckedFunctionDeclaration,
+  isLekkoConfigFile,
+} from "./helpers";
 import {
   checkCLIDeps,
   interfaceToProto,
@@ -22,6 +27,7 @@ import {
 } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
 import { emitEnvVars } from "./emit-env-vars";
+import kebabCase from "lodash.kebabcase";
 
 const CONFIG_IDENTIFIER_NAME = "_config";
 const CTX_IDENTIFIER_NAME = "_ctx";
@@ -167,41 +173,61 @@ export function transformer(
     const { factory } = context;
     let hasImportProto = false;
 
-    function maybeWrapAwait(expr: ts.Expression, cond?: boolean) {
-      return cond ? factory.createAwaitExpression(expr) : expr;
+    function checkConfigFunctionDeclaration(node: ts.FunctionDeclaration): {
+      checkedNode: CheckedFunctionDeclaration;
+      configName: string;
+      returnType: ts.Type;
+    } {
+      const sig = checker.getSignatureFromDeclaration(node);
+      assert(sig);
+      if (!isCheckedFunctionDeclaration(node)) {
+        throw new Error("Invalid function declaration: missing name or body");
+      }
+      // Check name
+      const functionName = node.name.getFullText().trim();
+      if (!/^\s*get[A-Z][A-Za-z]*$/.test(functionName)) {
+        throw new Error(
+          `Unparsable function name "${functionName}": config function names must start with "get"`,
+        );
+      }
+      const configName = kebabCase(functionName.substring(3));
+      // Check return type
+      const isAsync = ts.isAsyncFunction(node);
+      if (target === "node" && !isAsync) {
+        throw new Error("Config function must be async if target is node");
+      } else if (isAsync) {
+        throw new Error(
+          `Config function must not be async if target is ${target}`,
+        );
+      }
+      const returnType =
+        target === "node"
+          ? checker.getPromisedTypeOfPromise(sig.getReturnType())
+          : sig.getReturnType();
+      assert(returnType, "Unable to parse return type");
+
+      return { checkedNode: node, configName, returnType };
     }
 
     function transformLocalToRemote(
-      node: ts.FunctionDeclaration,
+      node: CheckedFunctionDeclaration,
       namespace: string,
+      configName: string,
+      returnType: ts.Type,
       // We work with parsing the JSON representations of config protos for now
       // It's probably slower but less dependencies to worry about and still "typed"
       config: LekkoConfigJSON,
     ): ts.Node | ts.Node[] {
-      const sig = checker.getSignatureFromDeclaration(node);
-      assert(sig);
-      assert(node.name);
-      assert(node.body);
-      assert(namespace);
-      const functionName = node.name.getFullText().trim();
-      const configName = functionName
-        .replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)
-        .replace(/get-/, "");
       let getter: string | undefined = undefined;
 
-      const type = program
-        ?.getTypeChecker()
-        .getPromisedTypeOfPromise(sig.getReturnType());
-      assert(type);
-
-      if (type.flags & tsInstance.TypeFlags.String) {
+      if (returnType.flags & tsInstance.TypeFlags.String) {
         getter = "getString";
-      } else if (type.flags & tsInstance.TypeFlags.Number) {
+      } else if (returnType.flags & tsInstance.TypeFlags.Number) {
         // TODO use config to handle float vs int
         getter = "getFloat";
-      } else if (type.flags & tsInstance.TypeFlags.Boolean) {
+      } else if (returnType.flags & tsInstance.TypeFlags.Boolean) {
         getter = "getBool";
-      } else if (type.flags & tsInstance.TypeFlags.Object) {
+      } else if (returnType.flags & tsInstance.TypeFlags.Object) {
         if (config.type === "FEATURE_TYPE_JSON") {
           getter = "getJSON";
         } else if (config.type === "FEATURE_TYPE_PROTO") {
@@ -212,7 +238,7 @@ export function transformer(
       }
       if (getter === undefined) {
         throw new Error(
-          `Unsupported TypeScript type: ${type.flags} - ${program?.getTypeChecker().typeToString(type)}`,
+          `Unsupported TypeScript type: ${returnType.flags} - ${program?.getTypeChecker().typeToString(returnType)}`,
         );
       }
       if (getter === "getProto") {
@@ -306,52 +332,46 @@ export function transformer(
                         undefined,
                         [
                           factory.createPropertyAccessExpression(
-                            // For JS SDK get calls need to be awaited
-                            maybeWrapAwait(
-                              factory.createCallExpression(
-                                factory.createPropertyAccessExpression(
-                                  target !== "node"
-                                    ? factory.createIdentifier("client")
-                                    : factory.createParenthesizedExpression(
-                                        factory.createAwaitExpression(
-                                          factory.createCallExpression(
-                                            factory.createPropertyAccessExpression(
-                                              factory.createIdentifier("lekko"),
-                                              factory.createIdentifier(
-                                                "getClient",
-                                              ),
+                            factory.createCallExpression(
+                              factory.createPropertyAccessExpression(
+                                target !== "node"
+                                  ? factory.createIdentifier("client")
+                                  : factory.createParenthesizedExpression(
+                                      factory.createAwaitExpression(
+                                        factory.createCallExpression(
+                                          factory.createPropertyAccessExpression(
+                                            factory.createIdentifier("lekko"),
+                                            factory.createIdentifier(
+                                              "getClient",
                                             ),
-                                            undefined,
-                                            [],
                                           ),
+                                          undefined,
+                                          [],
                                         ),
                                       ),
-                                  factory.createIdentifier("getProto"),
-                                ),
-                                undefined,
-                                [
-                                  factory.createStringLiteral(namespace),
-                                  factory.createStringLiteral(configName),
-                                  factory.createCallExpression(
-                                    factory.createPropertyAccessExpression(
-                                      factory.createPropertyAccessExpression(
-                                        factory.createIdentifier("lekko"),
-                                        factory.createIdentifier(
-                                          "ClientContext",
-                                        ),
-                                      ),
-                                      factory.createIdentifier("fromJSON"),
                                     ),
-                                    undefined,
-                                    [
-                                      factory.createIdentifier(
-                                        CTX_IDENTIFIER_NAME,
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                factory.createIdentifier("getProto"),
                               ),
-                              target !== "node",
+                              undefined,
+                              [
+                                factory.createStringLiteral(namespace),
+                                factory.createStringLiteral(configName),
+                                factory.createCallExpression(
+                                  factory.createPropertyAccessExpression(
+                                    factory.createPropertyAccessExpression(
+                                      factory.createIdentifier("lekko"),
+                                      factory.createIdentifier("ClientContext"),
+                                    ),
+                                    factory.createIdentifier("fromJSON"),
+                                  ),
+                                  undefined,
+                                  [
+                                    factory.createIdentifier(
+                                      CTX_IDENTIFIER_NAME,
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                             factory.createIdentifier("value"),
                           ),
@@ -455,42 +475,40 @@ export function transformer(
                         ),
                       ),
                   factory.createReturnStatement(
-                    factory.createAwaitExpression(
-                      factory.createCallExpression(
-                        factory.createPropertyAccessExpression(
-                          target !== "node"
-                            ? factory.createIdentifier("client")
-                            : factory.createParenthesizedExpression(
-                                factory.createAwaitExpression(
-                                  factory.createCallExpression(
-                                    factory.createPropertyAccessExpression(
-                                      factory.createIdentifier("lekko"),
-                                      factory.createIdentifier("getClient"),
-                                    ),
-                                    undefined,
-                                    [],
+                    factory.createCallExpression(
+                      factory.createPropertyAccessExpression(
+                        target !== "node"
+                          ? factory.createIdentifier("client")
+                          : factory.createParenthesizedExpression(
+                              factory.createAwaitExpression(
+                                factory.createCallExpression(
+                                  factory.createPropertyAccessExpression(
+                                    factory.createIdentifier("lekko"),
+                                    factory.createIdentifier("getClient"),
                                   ),
+                                  undefined,
+                                  [],
                                 ),
                               ),
-                          factory.createIdentifier(getter),
-                        ),
-                        undefined,
-                        [
-                          factory.createStringLiteral(namespace),
-                          factory.createStringLiteral(configName),
-                          factory.createCallExpression(
-                            factory.createPropertyAccessExpression(
-                              factory.createPropertyAccessExpression(
-                                factory.createIdentifier("lekko"),
-                                factory.createIdentifier("ClientContext"),
-                              ),
-                              factory.createIdentifier("fromJSON"),
                             ),
-                            undefined,
-                            [factory.createIdentifier(CTX_IDENTIFIER_NAME)],
-                          ),
-                        ],
+                        factory.createIdentifier(getter),
                       ),
+                      undefined,
+                      [
+                        factory.createStringLiteral(namespace),
+                        factory.createStringLiteral(configName),
+                        factory.createCallExpression(
+                          factory.createPropertyAccessExpression(
+                            factory.createPropertyAccessExpression(
+                              factory.createIdentifier("lekko"),
+                              factory.createIdentifier("ClientContext"),
+                            ),
+                            factory.createIdentifier("fromJSON"),
+                          ),
+                          undefined,
+                          [factory.createIdentifier(CTX_IDENTIFIER_NAME)],
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -635,11 +653,25 @@ export function transformer(
             return node;
           }
         } else if (tsInstance.isFunctionDeclaration(node)) {
+          const { checkedNode, configName, returnType } =
+            checkConfigFunctionDeclaration(node);
           // Apply changes to config repo
-          const configJSON = functionToConfigJSON(node, checker, namespace);
+          const configJSON = functionToConfigJSON(
+            checkedNode,
+            checker,
+            namespace,
+            configName,
+            returnType,
+          );
           configs.push(configJSON);
           // Transform local (static) to SDK client calls
-          return transformLocalToRemote(node, namespace, configJSON);
+          return transformLocalToRemote(
+            checkedNode,
+            namespace,
+            configName,
+            returnType,
+            configJSON,
+          );
         } else if (tsInstance.isInterfaceDeclaration(node)) {
           // Build proto definitions from interfaces
           interfaceToProto(node, checker, protoFileBuilder);

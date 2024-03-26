@@ -30,7 +30,7 @@ export default tseslint.config(
         },
       ],
     },
-    ignores: ["**/*.config.mjs", "**/bin/**/*", "**/dist/**/*"],
+    ignores: ["**/*.js", "**/*.cjs", "**/*.mjs", "**/bin/**/*", "**/dist/**/*"],
   },
   eslintConfigPrettier,
 );
