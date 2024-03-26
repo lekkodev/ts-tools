@@ -41,6 +41,7 @@
   "workspaces": [
     "packages/transformer",
     "packages/plugins/vite",
+    "packages/webpack-loader",
     "packages/plugins/eslint"
   ]
 }

@@ -45,7 +45,6 @@ export default function transformProgram(
   } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
 
-  checkCLIDeps();
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
   const repoPath = path.join(
     os.homedir(),
@@ -89,6 +88,7 @@ export default function transformProgram(
   ).transformed;
 
   // Then, we need to generate proto bindings and add the generated + transformed source files to the program
+  
   const printer = tsInstance.createPrinter();
   transformedSources.forEach((sourceFile) => {
     const namespace = path.basename(
@@ -121,7 +121,7 @@ export default function transformProgram(
       genIter.next();
     }
   });
-
+  
   // We need to add these bindings to the program
   const updatedProgram = tsInstance.createProgram(
     [...rootFileNames, ...sfCache.keys()],
@@ -152,9 +152,14 @@ export function transformer(
   const tsInstance = extras?.ts ?? ts;
   const { target = "node" } = pluginConfig ?? {};
 
-  checkCLIDeps();
+  try {
+    checkCLIDeps();
+  } catch (e){
+    console.warn("lekko not found, attempting anyways.")
+  }
 
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
+  // @ts-ignore
   let repoPath = path.join(
     os.homedir(),
     "Library/Application Support/Lekko/Config Repositories/default/",
@@ -166,6 +171,7 @@ export function transformer(
 
   return (context: ts.TransformationContext) => {
     const { factory } = context;
+    let hasImportProto = false;
 
     function checkConfigFunctionDeclaration(node: ts.FunctionDeclaration): {
       checkedNode: CheckedFunctionDeclaration;
@@ -238,21 +244,27 @@ export function transformer(
       if (getter === "getProto") {
         const protoTypeParts = config.tree.default["@type"].split(".");
         const protoType = protoTypeParts[protoTypeParts.length - 1];
-        return [
-          factory.createImportDeclaration(
-            undefined,
-            factory.createImportClause(
-              false,
+        const maybeProtoImport: ts.Node[] = [];
+        if (!hasImportProto) {
+          maybeProtoImport.push(
+            factory.createImportDeclaration(
               undefined,
-              factory.createNamespaceImport(
-                factory.createIdentifier("lekko_pb"),
+              factory.createImportClause(
+                false,
+                undefined,
+                factory.createNamespaceImport(
+                  factory.createIdentifier("lekko_pb"),
+                ),
               ),
+              factory.createStringLiteral(
+                `./gen/${namespace}/config/v1beta1/${namespace}_pb.ts`,
+              ),
+              undefined,
             ),
-            factory.createStringLiteral(
-              `./gen/${namespace}/config/v1beta1/${namespace}_pb.js`,
-            ),
-            undefined,
-          ),
+          );
+          hasImportProto = true;
+        }
+        return maybeProtoImport.concat([
           factory.updateFunctionDeclaration(
             node,
             node.modifiers,
@@ -407,7 +419,7 @@ export function transformer(
               factory.createStringLiteral(config.type),
             ),
           ),
-        ];
+        ]);
       }
       return [
         factory.updateFunctionDeclaration(
@@ -626,12 +638,16 @@ export function transformer(
               context,
             );
 
+            try {
             // The following are per-file operations
+            checkCLIDeps();
+            // TODO this needs to be a no-op if the tools aren't there
             genProtoFile(sourceFile, repoPath, protoFileBuilder);
-            configs.forEach((config) =>
-              genStarlark(repoPath, namespace, config),
+            configs.forEach((config) => genStarlark(repoPath, namespace, config),
             );
-
+            } catch {
+              console.log("CLI tools missing, skipping proto and starlark generation.")
+            }
             return transformed;
           } else {
             return node;
@@ -660,6 +676,7 @@ export function transformer(
           // Build proto definitions from interfaces
           interfaceToProto(node, checker, protoFileBuilder);
           // Remove declarations - to be replaced with proto bindings
+
           return undefined;
         }
         return node;
