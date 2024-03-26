@@ -1,5 +1,5 @@
 {
-  "name": "@lekko/eslint-plugin",
+  "name": "eslint-plugin-lekko",
   "version": "0.0.1",
   "description": "Eslint plugin for Lekko + TypeScript",
   "main": "index.cjs",
