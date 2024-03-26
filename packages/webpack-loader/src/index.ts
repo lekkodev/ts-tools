@@ -25,7 +25,7 @@ const loader: LoaderDefinitionFunction = function (source) {
   const transformed = transformProgram(program, undefined, {
     target: "next",
     configSrcPath: path.dirname(resource),
-    emitEnv: false,
+    emitEnv: true,
   });
   const srcFile = transformed.getSourceFile(resource);
   if (srcFile === undefined) {

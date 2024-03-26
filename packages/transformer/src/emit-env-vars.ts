@@ -13,9 +13,15 @@ interface ViteLekkoVars {
   VITE_LEKKO_REPOSITORY_NAME: string;
 }
 
+interface NextLekkoVars {
+  NEXT_PUBLIC_LEKKO_API_KEY: string;
+  NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER: string;
+  NEXT_PUBLIC_LEKKO_REPOSITORY_NAME: string;
+}
+
 function getVarsFromCLI(
   target: TransformerTarget,
-): NodeLekkoVars | ViteLekkoVars {
+): NodeLekkoVars | ViteLekkoVars | NextLekkoVars {
   const apiKeyCmd = spawnSync("lekko", ["apikey", "show"], {
     encoding: "utf-8",
   });
@@ -32,20 +38,30 @@ function getVarsFromCLI(
   }
   const repoName = repoCmd.stdout.trim();
 
-  if (target === "node") {
-    return {
-      LEKKO_API_KEY: apiKey,
-      LEKKO_REPO_NAME: repoName,
-    };
-  } else {
-    const [owner, name] = repoName.split("/");
-    return {
-      VITE_LEKKO_API_KEY: apiKey,
-      VITE_LEKKO_REPOSITORY_OWNER: owner,
-      VITE_LEKKO_REPOSITORY_NAME: name,
-    };
+  switch (target) {
+    case "node": {
+      return {
+        LEKKO_API_KEY: apiKey,
+        LEKKO_REPO_NAME: repoName,
+      };
+    }
+    case "vite": {
+      const [owner, name] = repoName.split("/");
+      return {
+        VITE_LEKKO_API_KEY: apiKey,
+        VITE_LEKKO_REPOSITORY_OWNER: owner,
+        VITE_LEKKO_REPOSITORY_NAME: name,
+      };
+    }
+    case "next": {
+      const [owner, name] = repoName.split("/");
+      return {
+        NEXT_PUBLIC_LEKKO_API_KEY: apiKey,
+        NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER: owner,
+        NEXT_PUBLIC_LEKKO_REPOSITORY_NAME: name,
+      };
+    }
   }
-  // TODO: Add Next env vars support
 }
 
 // For now, assumes that all env var files will be located at project root.

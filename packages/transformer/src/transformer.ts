@@ -137,7 +137,15 @@ export default function transformProgram(
   // Emit env vars
   if (emitEnv) {
     try {
-      emitEnvVars(target, typeof emitEnv === "string" ? emitEnv : undefined);
+      emitEnvVars(
+        target,
+        typeof emitEnv === "string"
+          ? emitEnv
+          : // NextJS conventions are to use .env.local by default for local work
+            target === "next"
+            ? ".env.local"
+            : ".env",
+      );
     } catch (e) {
       console.warn("[@lekko/ts-transformer]", (e as Error).message);
     }
