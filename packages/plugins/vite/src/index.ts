@@ -91,6 +91,8 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
         tsProgram,
         undefined,
         {
+          target: "vite",
+          // Already being emitted above during init
           emitEnv: false,
           configSrcPath,
         },
