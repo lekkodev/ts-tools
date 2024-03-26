@@ -22,3 +22,14 @@ export function isObjectType(type: ts.Type): type is ts.ObjectType {
 export function isIntrinsicType(type: ts.Type): type is ts.IntrinsicType {
   return (type.flags & ts.TypeFlags.Intrinsic) === 1 && "intrinsicName" in type;
 }
+
+export interface CheckedFunctionDeclaration extends ts.FunctionDeclaration {
+  name: ts.Identifier;
+  body: ts.Block;
+}
+
+export function isCheckedFunctionDeclaration(
+  node: ts.FunctionDeclaration,
+): node is CheckedFunctionDeclaration {
+  return node.name !== undefined && node.body !== undefined;
+}
