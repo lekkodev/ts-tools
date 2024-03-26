@@ -1,41 +1,42 @@
 import ts from "typescript";
 import path from "path";
-import { transformer } from "@lekko/ts-transformer";
+import { type LoaderDefinitionFunction } from "webpack";
+import transformProgram from "@lekko/ts-transformer";
 
-module.exports = function (source: string) {
-  // @ts-ignore
-  const configFileName = path.join(this.rootContext, "tsconfig.json")
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-  const configFile = ts.readConfigFile(configFileName!, (path) =>
+const loader: LoaderDefinitionFunction = function (source) {
+  // Ignore generated files
+  if (this.resource.split(path.sep).includes("gen")) {
+    return source;
+  }
+  // Parse ts config options
+  const configFileName = path.join(this.rootContext, "tsconfig.json");
+  const configFile = ts.readConfigFile(configFileName, (path) =>
     ts.sys.readFile(path),
   );
-
   const compilerOptions = ts.parseJsonConfigFileContent(
     configFile.config,
     ts.sys,
-    // @ts-ignore
     this.rootContext,
   );
-
-  // @ts-ignore
+  // Resource gives path to Lekko config source file
   const resource = this.resource;
+  // Invoke transformer
+  const program = ts.createProgram([resource], { ...compilerOptions.options });
+  const transformed = transformProgram(program, undefined, {
+    target: "next",
+    configSrcPath: path.dirname(resource),
+    emitEnv: false,
+  });
+  const srcFile = transformed.getSourceFile(resource);
+  if (srcFile === undefined) {
+    this.emitWarning(
+      new Error("Error setting up Lekko Webpack loader, defaulting to no-op"),
+    );
+    return source;
+  }
 
-  // @ts-ignore
-  let program = ts.createProgram([resource], compilerOptions);
-
-  const transformedSources = ts.transform(
-    [program?.getSourceFile(resource)!],
-    [
-      transformer(program, { target: "next" }, {
-        ts,
-        library: "typescript",
-        addDiagnostic: () => 0,
-        removeDiagnostic: () => { },
-        diagnostics: [],
-      }),
-    ],
-    {},
-  ).transformed;
   const printer = ts.createPrinter();
-  return printer.printFile(transformedSources[0])
+  return printer.printFile(srcFile);
 };
+
+module.exports = loader;

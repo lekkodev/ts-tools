@@ -86,9 +86,7 @@ export default function transformProgram(
     ],
     compilerOptions,
   ).transformed;
-
   // Then, we need to generate proto bindings and add the generated + transformed source files to the program
-  
   const printer = tsInstance.createPrinter();
   transformedSources.forEach((sourceFile) => {
     const namespace = path.basename(
@@ -104,24 +102,28 @@ export default function transformProgram(
         sourceFile.languageVersion,
       ),
     );
-    const genIter = genProtoBindings(repoPath, namespace);
-    const generated = genIter.next();
-    if (!generated.done) {
-      Object.entries(generated.value).forEach(([fileName, contents]) => {
-        sfCache.set(
-          path.join(resolvedConfigSrcPath, fileName),
-          tsInstance.createSourceFile(
-            path.join(resolvedConfigSrcPath, fileName),
-            contents,
-            ts.ScriptTarget.ES2017,
-          ),
-        );
-      });
-      // Trigger cleanup (TODO: probably doesn't need to be a generator)
+    try {
+      const genIter = genProtoBindings(repoPath, configSrcPath, namespace);
       genIter.next();
+      const generated = genIter.next();
+      if (!generated.done) {
+        Object.entries(generated.value).forEach(([fileName, contents]) => {
+          sfCache.set(
+            path.join(resolvedConfigSrcPath, fileName),
+            tsInstance.createSourceFile(
+              path.join(resolvedConfigSrcPath, fileName),
+              contents,
+              ts.ScriptTarget.ES2017,
+            ),
+          );
+        });
+        // Trigger cleanup (TODO: probably doesn't need to be a generator)
+        genIter.next();
+      }
+    } catch (e) {
+      console.warn("Failed to generate proto bindings, continuing");
     }
   });
-  
   // We need to add these bindings to the program
   const updatedProgram = tsInstance.createProgram(
     [...rootFileNames, ...sfCache.keys()],
@@ -154,12 +156,11 @@ export function transformer(
 
   try {
     checkCLIDeps();
-  } catch (e){
-    console.warn("lekko not found, attempting anyways.")
+  } catch (e) {
+    console.warn("lekko not found, attempting anyways.");
   }
 
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
-  // @ts-ignore
   let repoPath = path.join(
     os.homedir(),
     "Library/Application Support/Lekko/Config Repositories/default/",
@@ -639,14 +640,17 @@ export function transformer(
             );
 
             try {
-            // The following are per-file operations
-            checkCLIDeps();
-            // TODO this needs to be a no-op if the tools aren't there
-            genProtoFile(sourceFile, repoPath, protoFileBuilder);
-            configs.forEach((config) => genStarlark(repoPath, namespace, config),
-            );
+              // The following are per-file operations
+              checkCLIDeps();
+              // TODO this needs to be a no-op if the tools aren't there
+              genProtoFile(sourceFile, repoPath, protoFileBuilder);
+              configs.forEach((config) =>
+                genStarlark(repoPath, namespace, config),
+              );
             } catch {
-              console.log("CLI tools missing, skipping proto and starlark generation.")
+              console.log(
+                "CLI tools missing, skipping proto and starlark generation.",
+              );
             }
             return transformed;
           } else {

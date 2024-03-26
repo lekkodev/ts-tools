@@ -20,7 +20,6 @@ import {
 //import { rimrafSync } from "rimraf";
 import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
 
-
 const COMPARISON_TOKEN_TO_OPERATOR: Partial<
   Record<ts.SyntaxKind, LekkoComparisonOperator>
 > = {
@@ -528,11 +527,11 @@ export function genProtoFile(
  * relative paths to generated ts contents.
  * This is a generator function - it can be reentered to trigger cleanup logic.
  */
-export function* genProtoBindings(repoPath: string, namespace: string) {
-  // Put in temp location to avoid polluting project and for known cleanup
-  // e.g. /tmp/lekko-abcdef/gen/<namespace>/config/v1beta1/<namespace>.proto
-  // @ts-ignore
-  const outputPath = path.join(process.env.npm_config_local_prefix, "src/lekko/"); //fs.mkdtempSync(path.join(os.tmpdir(), "lekko-"));
+export function* genProtoBindings(
+  repoPath: string,
+  outputPath: string,
+  namespace: string,
+) {
   const protoPath = getProtoPath(repoPath, namespace);
 
   if (!fs.existsSync(protoPath)) {
@@ -573,6 +572,8 @@ export function* genProtoBindings(repoPath: string, namespace: string) {
     throw new Error("Failed to generate proto bindings");
   }
 
+  // Can stop here if not interested in contents
+  yield {};
   // Yield the generated _pb.ts files' relative paths and contents
   const relGenPath = path.join("gen", namespace, "config", "v1beta1");
   const absGenPath = path.join(outputPath, relGenPath);
@@ -596,5 +597,5 @@ export function* genProtoBindings(repoPath: string, namespace: string) {
   yield files;
 
   // Clean up generated bindings
-  //rimrafSync(outputPath);
+  // rimrafSync(outputPath);
 }

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "buildpack": "npm run build && npm pack --workspaces",
     "prepack": "rm -f *.tgz"
   },
   "repository": {
