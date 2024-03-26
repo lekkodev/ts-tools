@@ -385,7 +385,22 @@ function getProtoTypeFromTypeScriptType(
   if (type.flags & ts.TypeFlags.Union) {
     const unionType: ts.UnionType = type as ts.UnionType;
     // If optional or undefined and another type, handle - proto fields are all optional
-    if (unionType.types.length === 2) {
+    // But specifically for optional booleans, there are 3 types - true, false, and undefined
+    if (unionType.types.length === 3) {
+      if (
+        unionType.types.some(
+          (t) => isIntrinsicType(t) && t.intrinsicName === "false",
+        ) &&
+        unionType.types.some(
+          (t) => isIntrinsicType(t) && t.intrinsicName === "true",
+        ) &&
+        unionType.types.some((t) => t.flags & ts.TypeFlags.Undefined)
+      ) {
+        return "bool";
+      } else {
+        throw new Error("Union types are currently not fully supported.");
+      }
+    } else if (unionType.types.length === 2) {
       let definedType: ts.Type;
       const [typeA, typeB] = unionType.types;
       if (typeA.flags & ts.TypeFlags.Undefined) {
