@@ -28,8 +28,8 @@ module.exports = {
       ":not(ExportNamedDeclaration) > FunctionDeclaration": function (node) {
         context.report(node, "Only top level, exported functions allowed");
       },
-      "FunctionDeclaration[async!=true]": function (node) {
-        context.report(node, "functions must be async");
+      "FunctionDeclaration[async=true]": function (node) {
+        context.report(node, "functions must not be async");
       },
       "Program > :not(ExportNamedDeclaration)": function (node) {
         context.report(node, "Invalid top level node");
