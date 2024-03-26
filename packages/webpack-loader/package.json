@@ -11,7 +11,7 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
-    "@lekko/ts-transformer": ">=0.0.0-beta-4"
+    "@lekko/ts-transformer": ">=0.0.0-beta-5"
   },
   "scripts": {
     "build": "rm -rf dist/ && tsc",
