@@ -1,19 +1,44 @@
 # eslint-plugin-lekko
 
+The Lekko eslint plugin provides warnings on syntax that is incompatible for Lekko config functions.
+
+This plugin will continue to be updated to better match the list of supported/unsupported features.
+
+## Installation
+
 `npm i -D eslint-plugin-lekko`
 
+## Usage
+
+New eslint configuration format:
+
+```js
+import lekko from "eslint-plugin-lekko";
+
+export default [
+  {
+    files: ["src/lekko/*.ts"],
+    plugins: {
+      lekko: lekko,
+    },
+    rules: {
+      "lekko/limitations": "error",
+    },
+  },
+];
 ```
-.eslintrc.json
+
+Legacy eslint configuration format:
+
+```json
+// .eslintrc.json
 {
-  "extends": "next/core-web-vitals",
-  "plugins": [
-    "lekko"
-  ],
+  "plugins": ["lekko"],
   "overrides": [
     {
       "files": ["src/lekko/*.ts"],
       "rules": {
-        "lekko/lekko-limitations": "error"
+        "lekko/limitations": "error"
       }
     }
   ]

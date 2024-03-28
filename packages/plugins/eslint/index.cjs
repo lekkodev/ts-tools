@@ -1,5 +1,5 @@
 module.exports = {
   rules: {
-    "lekko-limitations": require("./rules/limitations.cjs"),
+    limitations: require("./rules/limitations.cjs"),
   },
 };
