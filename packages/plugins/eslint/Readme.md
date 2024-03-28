@@ -13,7 +13,7 @@ This plugin will continue to be updated to better match the list of supported/un
 New eslint configuration format:
 
 ```js
-import lekko from "eslint-plugin-lekko";
+import lekko from "@lekko/eslint-plugin";
 
 export default [
   {
@@ -22,7 +22,7 @@ export default [
       lekko: lekko,
     },
     rules: {
-      "lekko/limitations": "error",
+      "@lekko/limitations": "error",
     },
   },
 ];
@@ -33,12 +33,12 @@ Legacy eslint configuration format:
 ```json
 // .eslintrc.json
 {
-  "plugins": ["lekko"],
+  "plugins": ["@lekko"],
   "overrides": [
     {
       "files": ["src/lekko/*.ts"],
       "rules": {
-        "lekko/limitations": "error"
+        "@lekko/limitations": "error"
       }
     }
   ]
