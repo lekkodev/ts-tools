@@ -162,12 +162,6 @@ export function transformer(
   const tsInstance = extras?.ts ?? ts;
   const { target = "node" } = pluginConfig ?? {};
 
-  try {
-    checkCLIDeps();
-  } catch (e) {
-    console.warn("lekko not found, attempting anyways.");
-  }
-
   // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
   let repoPath = path.join(
     os.homedir(),
@@ -657,7 +651,7 @@ export function transformer(
               );
             } catch {
               console.log(
-                "CLI tools missing, skipping proto and starlark generation.",
+                "[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.",
               );
             }
             return transformed;

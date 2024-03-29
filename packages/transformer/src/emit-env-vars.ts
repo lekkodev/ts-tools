@@ -19,6 +19,7 @@ interface NextLekkoVars {
   NEXT_PUBLIC_LEKKO_REPOSITORY_NAME: string;
 }
 
+// TODO: Classify error types like missing CLI, missing API key, etc.
 function getVarsFromCLI(
   target: TransformerTarget,
 ): NodeLekkoVars | ViteLekkoVars | NextLekkoVars {
@@ -105,4 +106,6 @@ export function emitEnvVars(
   });
   // Write back
   fs.writeFileSync(filename, contents);
+
+  return lekkoVars;
 }
