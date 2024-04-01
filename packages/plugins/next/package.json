@@ -1,0 +1,41 @@
+{
+  "name": "@lekko/next-plugin",
+  "version": "0.0.0-beta-1",
+  "description": "NextJS react plugin for Lekko",
+  "type": "module",
+  "main": "dist/index.jsx",
+  "peerDependencies": {
+    "next": "14.1.4",
+    "react": "^18.2.0",
+    "typescript": ">=5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.73",
+    "@types/xxhashjs": "^0.2.4",
+    "typescript": "^5.4.2"
+  },
+  "dependencies": {
+    "@connectrpc/connect": "^1.4.0",
+    "base-64": "^1.0.0",
+    "xxhashjs": "^0.2.2"
+  },
+  "scripts": {
+    "build": "rm -rf dist/ && tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lekkodev/ts-tools.git"
+  },
+  "keywords": [
+    "lekko",
+    "typescript",
+    "ts"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lekkodev/ts-tools/issues"
+  },
+  "homepage": "https://github.com/lekkodev/ts-tools#readme"
+}
