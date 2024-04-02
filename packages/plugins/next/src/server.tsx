@@ -13,7 +13,7 @@ var base64 = require('base-64');
 // TODO better name
 export const getRepo = cache(async () => {
   const response = await fetch(
-    "https://ts-relay.lekkorelay.workers.dev/" + btoa(`${process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER}/${process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME}/${process.env.NEXT_PUBLIC_LEKKO_API_KEY}`),
+    "https://relay.lekko-cdn.com/" + btoa(`${process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER}/${process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME}/${process.env.NEXT_PUBLIC_LEKKO_API_KEY}`),
   );
   if (!response.ok || !response.body) {
     return null;
