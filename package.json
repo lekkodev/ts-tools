@@ -43,6 +43,7 @@
     "packages/transformer",
     "packages/plugins/vite",
     "packages/webpack-loader",
-    "packages/plugins/eslint"
+    "packages/plugins/eslint",
+    "packages/next-sdk"
   ]
 }
