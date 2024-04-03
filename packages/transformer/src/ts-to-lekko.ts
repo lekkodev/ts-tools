@@ -16,7 +16,7 @@ import {
   type LekkoConfigType,
   type LekkoComparisonOperator,
   type LekkoLogicalOperator,
-  SupportedExpressionName,
+  type SupportedExpressionName,
 } from "./types";
 //import { rimrafSync } from "rimraf";
 import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
