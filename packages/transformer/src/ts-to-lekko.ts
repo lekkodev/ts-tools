@@ -108,19 +108,27 @@ function ifStatementToRule(
       `Must only contain return statement: ${block.getFullText()}`,
     );
   }
-  if (ifStatement.elseStatement != undefined) {
-    throw new Error(
-      `Else does not yet exist, sorry: ${ifStatement.getFullText()}`,
-    );
-  }
-  return {
+  const ret = [{
     rule: expressionToThing(ifStatement.expression),
     value: returnStatementToValue(
       block.statements[0] as ts.ReturnStatement,
       namespace,
       returnType,
     ),
-  };
+  }];
+
+  if (ifStatement.elseStatement) {
+    if (ifStatement.elseStatement.kind === ts.SyntaxKind.IfStatement) {
+      ret.push(...ifStatementToRule(ifStatement.elseStatement as ts.IfStatement, namespace, returnType))
+    } else {
+      throw new Error(
+        `invalid else statement: ${block.getFullText()}`,
+      );
+
+    }
+  }
+
+  return ret
 }
 
 function returnStatementToValue(
@@ -232,10 +240,10 @@ export function functionToConfigJSON(
     | LekkoConfigJSONTree<typeof configType>["constraints"]
     | undefined;
 
-  for (const statement of node.body.statements) {
+  for (const [_, statement] of node.body.statements.entries()) {
     switch (statement.kind) {
       case ts.SyntaxKind.IfStatement: {
-        const { rule, value } = ifStatementToRule(
+        const ruleValPairs = ifStatementToRule(
           statement as ts.IfStatement,
           namespace,
           valueType,
@@ -243,10 +251,12 @@ export function functionToConfigJSON(
         if (configTreeConstraints === undefined) {
           configTreeConstraints = [];
         }
-        configTreeConstraints.push({
-          value: value,
-          ruleAstNew: rule,
-        });
+        for (const { value, rule } of ruleValPairs) {
+          configTreeConstraints.push({
+            value: value,
+            ruleAstNew: rule,
+          });
+        }
         break;
       }
       case ts.SyntaxKind.ReturnStatement: {
