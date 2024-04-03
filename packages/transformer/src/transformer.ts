@@ -1,6 +1,7 @@
 import assert from "assert";
 import os from "os";
 import path from "path";
+import { spawnSync } from "child_process";
 import {
   type ProgramTransformerExtras,
   type TransformerExtras,
@@ -32,24 +33,32 @@ import kebabCase from "lodash.kebabcase";
 const CONFIG_IDENTIFIER_NAME = "_config";
 const CTX_IDENTIFIER_NAME = "_ctx";
 
+function getRepoPathFromCLI(): string {
+  const repoCmd = spawnSync("lekko", ["repo", "path"], { encoding: "utf-8" });
+  if (repoCmd.error !== undefined || repoCmd.status !== 0) {
+    return path.join(
+      os.homedir(),
+      "Library/Application Support/Lekko/Config Repositories/default/",
+    );
+  }
+  return repoCmd.stdout.trim();
+}
+
 export default function transformProgram(
   program: ts.Program,
   host?: ts.CompilerHost,
   pluginConfig?: LekkoTransformerOptions,
   extras?: ProgramTransformerExtras,
 ) {
+  pluginConfig = pluginConfig ?? {};
+  pluginConfig.repoPath = getRepoPathFromCLI();
   const {
+    repoPath = "",
     configSrcPath = "./src/lekko",
     emitEnv = true,
     target = "node",
   } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
-
-  // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
-  const repoPath = path.join(
-    os.homedir(),
-    "Library/Application Support/Lekko/Config Repositories/default/",
-  );
 
   const compilerOptions = program.getCompilerOptions();
   const tsInstance = extras?.ts ?? ts;
@@ -160,16 +169,8 @@ export function transformer(
   extras?: TransformerExtras,
 ) {
   const tsInstance = extras?.ts ?? ts;
-  const { target = "node" } = pluginConfig ?? {};
+  const { target = "node", repoPath = "" } = pluginConfig ?? {};
 
-  // TODO: repo path should be configurable (and not from tsconfig - maybe from lekko repo switch?)
-  let repoPath = path.join(
-    os.homedir(),
-    "Library/Application Support/Lekko/Config Repositories/default/",
-  );
-  if (pluginConfig?.repoPath !== undefined) {
-    repoPath = pluginConfig?.repoPath;
-  }
   const checker = program.getTypeChecker();
 
   return (context: ts.TransformationContext) => {
