@@ -37,7 +37,10 @@ export type LekkoComparisonOperator =
   | "COMPARISON_OPERATOR_LESS_THAN_OR_EQUALS"
   | "COMPARISON_OPERATOR_GREATER_THAN"
   | "COMPARISON_OPERATOR_GREATER_THAN_OR_EQUALS"
-  | "COMPARISON_OPERATOR_NOT_EQUALS";
+  | "COMPARISON_OPERATOR_NOT_EQUALS"
+  | "COMPARISON_OPERATOR_CONTAINS"
+  | "COMPARISON_OPERATOR_STARTS_WITH"
+  | "COMPARISON_OPERATOR_ENDS_WITH"
 
 export type LekkoConfigType =
   | "FEATURE_TYPE_BOOL"
@@ -121,3 +124,5 @@ export interface ProtoFileBuilder {
     [key: string]: string[];
   };
 }
+
+export type SupportedExpressionName = 'includes' | 'startsWith' | 'endsWith'

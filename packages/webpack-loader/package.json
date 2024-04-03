@@ -11,7 +11,7 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
-    "@lekko/ts-transformer": "^0.0.1",
+    "@lekko/ts-transformer": "^0.0.2-beta-1",
     "webpack": "^5.0.0"
   },
   "scripts": {
