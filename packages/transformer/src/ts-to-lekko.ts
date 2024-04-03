@@ -16,6 +16,7 @@ import {
   type LekkoConfigType,
   type LekkoComparisonOperator,
   type LekkoLogicalOperator,
+  type SupportedExpressionName,
 } from "./types";
 //import { rimrafSync } from "rimraf";
 import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
@@ -41,6 +42,14 @@ const LOGICAL_TOKEN_TO_OPERATOR: Partial<
   [ts.SyntaxKind.BarBarToken]: "LOGICAL_OPERATOR_OR",
 };
 
+const EXPRESSION_NAME_TO_OPERATOR: Partial<
+Record<SupportedExpressionName, LekkoComparisonOperator>
+> = {
+  "includes": "COMPARISON_OPERATOR_CONTAINS",
+  "startsWith": "COMPARISON_OPERATOR_STARTS_WITH",
+  "endsWith": "COMPARISON_OPERATOR_ENDS_WITH",
+};
+
 function exprToContextKey(expr: ts.Expression): string {
   switch (expr.kind) {
     case ts.SyntaxKind.Identifier:
@@ -57,7 +66,15 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
     case ts.SyntaxKind.BinaryExpression: {
       const binaryExpr = expression as ts.BinaryExpression;
       const tokenKind = binaryExpr.operatorToken.kind;
-      if (tokenKind in COMPARISON_TOKEN_TO_OPERATOR) {
+
+      if (tokenKind === ts.SyntaxKind.ExclamationEqualsEqualsToken && binaryExpr.right.getText() === "undefined") {
+        return {
+          atom: {
+            contextKey: exprToContextKey(binaryExpr.left),
+            comparisonOperator: "COMPARISON_OPERATOR_PRESENT",
+          },
+        };
+      } else if (tokenKind in COMPARISON_TOKEN_TO_OPERATOR) {
         return {
           atom: {
             contextKey: exprToContextKey(binaryExpr.left),
@@ -87,6 +104,28 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
     case ts.SyntaxKind.ParenthesizedExpression: {
       const expr = expression as ts.ParenthesizedExpression;
       return expressionToThing(expr.expression);
+    }
+    case ts.SyntaxKind.CallExpression: {
+      const callExpr = expression as ts.CallExpression;
+      const propertyAccessExpr = callExpr.expression;
+      
+      if (ts.isPropertyAccessExpression(propertyAccessExpr)) {
+        const expressionName = propertyAccessExpr.name.text as SupportedExpressionName;
+        const comparisonOperator = EXPRESSION_NAME_TO_OPERATOR[expressionName];
+
+        if (comparisonOperator !== undefined) {
+          return {
+            atom: {
+              contextKey: exprToContextKey(propertyAccessExpr.expression),
+              comparisonValue: expressionToJsonValue(callExpr.arguments[0]) as string | number | boolean,
+              comparisonOperator: comparisonOperator,
+            },
+          };
+        }
+      }
+      throw new Error(
+        `Call expression ${propertyAccessExpr.getText()} is currently not supported`,
+      );
     }
     // TODO other literal types
     default: {
