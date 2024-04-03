@@ -66,7 +66,15 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
     case ts.SyntaxKind.BinaryExpression: {
       const binaryExpr = expression as ts.BinaryExpression;
       const tokenKind = binaryExpr.operatorToken.kind;
-      if (tokenKind in COMPARISON_TOKEN_TO_OPERATOR) {
+
+      if (tokenKind === ts.SyntaxKind.ExclamationEqualsEqualsToken && binaryExpr.right.getText() === "undefined") {
+        return {
+          atom: {
+            contextKey: exprToContextKey(binaryExpr.left),
+            comparisonOperator: "COMPARISON_OPERATOR_PRESENT",
+          },
+        };
+      } else if (tokenKind in COMPARISON_TOKEN_TO_OPERATOR) {
         return {
           atom: {
             contextKey: exprToContextKey(binaryExpr.left),
