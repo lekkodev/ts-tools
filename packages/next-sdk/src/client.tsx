@@ -17,7 +17,7 @@ export type LekkoConfigFn<T, C extends LekkoContext> = (
 ) => T;
 
 /**
- * A hook for evaluation Lekko config functions.
+ * A hook for evaluating Lekko config functions.
  *
  * @param configFn A function that takes a context and returns the evaluated value. Should be transformed at build time to use dynamic, up-to-date data with static fallback behavior.
  * @param context The context that will be passed to the config function. Type checks will guarantee that the context passed satisfies the context required by the config function.
