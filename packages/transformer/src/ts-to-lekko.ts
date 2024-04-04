@@ -113,19 +113,25 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
       const propertyAccessExpr = callExpr.expression;
 
       if (ts.isPropertyAccessExpression(propertyAccessExpr)) {
-        const expressionName = propertyAccessExpr.name.text as SupportedExpressionName;
+        const expressionName = propertyAccessExpr.name
+          .text as SupportedExpressionName;
 
-        if (expressionName === "includes" && ts.isArrayLiteralExpression(propertyAccessExpr.expression)) {
+        if (
+          expressionName === "includes" &&
+          ts.isArrayLiteralExpression(propertyAccessExpr.expression)
+        ) {
           const contextKey = exprToContextKey(callExpr.arguments[0]);
-          const arrayElements = processArrayElements(propertyAccessExpr.expression.elements)
+          const arrayElements = processArrayElements(
+            propertyAccessExpr.expression.elements,
+          );
 
           return {
             atom: {
               contextKey,
               comparisonValue: arrayElements,
-              comparisonOperator: "COMPARISON_OPERATOR_CONTAINED_WITHIN"
-            }
-          }
+              comparisonOperator: "COMPARISON_OPERATOR_CONTAINED_WITHIN",
+            },
+          };
         }
 
         const comparisonOperator = EXPRESSION_NAME_TO_OPERATOR[expressionName];
@@ -347,7 +353,7 @@ export function functionToConfigJSON(
   const config: LekkoConfigJSON<typeof configType> = {
     key: configKey,
     // TODO: Handle descriptions
-    description: "Generated from TypeScript",
+    description: "",
     tree: {
       default: configTreeDefault,
       constraints: configTreeConstraints,
@@ -691,8 +697,10 @@ export function* genProtoBindings(
   // rimrafSync(outputPath);
 }
 
-function processArrayElements(elements: ts.NodeArray<ts.Expression>): Array<string | number | boolean> {
-  return elements.map(element => {
+function processArrayElements(
+  elements: ts.NodeArray<ts.Expression>,
+): Array<string | number | boolean> {
+  return elements.map((element) => {
     if (ts.isStringLiteral(element)) {
       return element.text;
     } else if (ts.isNumericLiteral(element)) {
