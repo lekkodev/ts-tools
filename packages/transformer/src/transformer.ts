@@ -51,7 +51,7 @@ export default function transformProgram(
   extras?: ProgramTransformerExtras,
 ) {
   pluginConfig = pluginConfig ?? {};
-  pluginConfig.repoPath = getRepoPathFromCLI();
+  pluginConfig.repoPath ||= getRepoPathFromCLI();
   const {
     repoPath = "",
     configSrcPath = "./src/lekko",
