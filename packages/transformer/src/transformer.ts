@@ -336,16 +336,12 @@ export function transformer(
                                 target !== "node"
                                   ? factory.createIdentifier("client")
                                   : factory.createParenthesizedExpression(
-                                        factory.createCallExpression(
                                           factory.createPropertyAccessExpression(
-                                            factory.createIdentifier("lekko"),
+                                            factory.createIdentifier("globalThis"),
                                             factory.createIdentifier(
-                                              "getClient",
+                                              "lekkoClient",
                                             ),
                                           ),
-                                          undefined,
-                                          [],
-                                        ),
                                     ),
                                 factory.createIdentifier("getProto"),
                               ),
@@ -461,16 +457,10 @@ export function transformer(
                       factory.createPropertyAccessExpression(
                         target !== "node"
                           ? factory.createIdentifier("client")
-                          : factory.createParenthesizedExpression(
-                            factory.createCallExpression(
-                              factory.createPropertyAccessExpression(
-                                factory.createIdentifier("lekko"),
-                                factory.createIdentifier("getClient"),
+                          :  factory.createPropertyAccessExpression(
+                                factory.createIdentifier("globalThis"),
+                                factory.createIdentifier("lekkoClient"),
                               ),
-                              undefined,
-                              [],
-                            ),
-                            ),
                         factory.createIdentifier(getter),
                       ),
                       undefined,
