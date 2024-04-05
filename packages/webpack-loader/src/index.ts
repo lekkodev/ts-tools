@@ -67,7 +67,6 @@ const loader: LekkoWebpackModule = function (source) {
   const resource = this.resource;
   // Invoke transformer
   const program = ts.createProgram([resource], { ...compilerOptions.options });
-  this.getOptions();
   const transformed = transformProgram(program, undefined, {
     target: "next",
     configSrcPath: path.dirname(resource),
