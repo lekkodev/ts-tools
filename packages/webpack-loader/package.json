@@ -1,18 +1,15 @@
 {
   "name": "@lekko/webpack-loader",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "",
   "main": "dist/index.js",
-  "peerDependencies": {
-    "typescript": ">=5"
-  },
   "devDependencies": {
-    "@types/webpack": "^5.28.5",
-    "typescript": "^5.4.2"
+    "@types/webpack": "^5.28.5"
   },
   "dependencies": {
-    "@lekko/ts-transformer": ">=0.0.2",
-    "webpack": "^5.0.0"
+    "@lekko/ts-transformer": "^0.0.4",
+    "webpack": "^5.0.0",
+    "typescript": "~5.4.0"
   },
   "scripts": {
     "build": "rm -rf dist/ && tsc",
@@ -22,7 +19,12 @@
     "type": "git",
     "url": "git+https://github.com/lekkodev/ts-tools.git"
   },
-  "keywords": ["lekko", "webpack", "typescript", "ts"],
+  "keywords": [
+    "lekko",
+    "webpack",
+    "typescript",
+    "ts"
+  ],
   "author": "",
   "license": "MIT",
   "bugs": {
