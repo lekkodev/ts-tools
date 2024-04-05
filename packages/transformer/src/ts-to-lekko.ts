@@ -43,11 +43,11 @@ const LOGICAL_TOKEN_TO_OPERATOR: Partial<
 };
 
 const EXPRESSION_NAME_TO_OPERATOR: Partial<
-Record<SupportedExpressionName, LekkoComparisonOperator>
+  Record<SupportedExpressionName, LekkoComparisonOperator>
 > = {
-  "includes": "COMPARISON_OPERATOR_CONTAINS",
-  "startsWith": "COMPARISON_OPERATOR_STARTS_WITH",
-  "endsWith": "COMPARISON_OPERATOR_ENDS_WITH",
+  includes: "COMPARISON_OPERATOR_CONTAINS",
+  startsWith: "COMPARISON_OPERATOR_STARTS_WITH",
+  endsWith: "COMPARISON_OPERATOR_ENDS_WITH",
 };
 
 function exprToContextKey(expr: ts.Expression): string {
@@ -67,7 +67,10 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
       const binaryExpr = expression as ts.BinaryExpression;
       const tokenKind = binaryExpr.operatorToken.kind;
 
-      if (tokenKind === ts.SyntaxKind.ExclamationEqualsEqualsToken && binaryExpr.right.getText() === "undefined") {
+      if (
+        tokenKind === ts.SyntaxKind.ExclamationEqualsEqualsToken &&
+        binaryExpr.right.getText() === "undefined"
+      ) {
         return {
           atom: {
             contextKey: exprToContextKey(binaryExpr.left),
@@ -108,16 +111,20 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
     case ts.SyntaxKind.CallExpression: {
       const callExpr = expression as ts.CallExpression;
       const propertyAccessExpr = callExpr.expression;
-      
+
       if (ts.isPropertyAccessExpression(propertyAccessExpr)) {
-        const expressionName = propertyAccessExpr.name.text as SupportedExpressionName;
+        const expressionName = propertyAccessExpr.name
+          .text as SupportedExpressionName;
         const comparisonOperator = EXPRESSION_NAME_TO_OPERATOR[expressionName];
 
         if (comparisonOperator !== undefined) {
           return {
             atom: {
               contextKey: exprToContextKey(propertyAccessExpr.expression),
-              comparisonValue: expressionToJsonValue(callExpr.arguments[0]) as string | number | boolean,
+              comparisonValue: expressionToJsonValue(callExpr.arguments[0]) as
+                | string
+                | number
+                | boolean,
               comparisonOperator: comparisonOperator,
             },
           };
@@ -147,27 +154,32 @@ function ifStatementToRule(
       `Must only contain return statement: ${block.getFullText()}`,
     );
   }
-  const ret = [{
-    rule: expressionToThing(ifStatement.expression),
-    value: returnStatementToValue(
-      block.statements[0] as ts.ReturnStatement,
-      namespace,
-      returnType,
-    ),
-  }];
+  const ret = [
+    {
+      rule: expressionToThing(ifStatement.expression),
+      value: returnStatementToValue(
+        block.statements[0] as ts.ReturnStatement,
+        namespace,
+        returnType,
+      ),
+    },
+  ];
 
   if (ifStatement.elseStatement) {
     if (ifStatement.elseStatement.kind === ts.SyntaxKind.IfStatement) {
-      ret.push(...ifStatementToRule(ifStatement.elseStatement as ts.IfStatement, namespace, returnType))
-    } else {
-      throw new Error(
-        `invalid else statement: ${block.getFullText()}`,
+      ret.push(
+        ...ifStatementToRule(
+          ifStatement.elseStatement as ts.IfStatement,
+          namespace,
+          returnType,
+        ),
       );
-
+    } else {
+      throw new Error(`invalid else statement: ${block.getFullText()}`);
     }
   }
 
-  return ret
+  return ret;
 }
 
 function returnStatementToValue(
@@ -582,7 +594,9 @@ export function genProtoFile(
     encoding: "utf-8",
   });
   if (formatCmd.error !== undefined || formatCmd.status !== 0) {
-    throw new Error("Failed to generate well-formed protobuf files.");
+    throw new Error(
+      `Failed to generate well-formed protobuf files: ${formatCmd.stdout}${formatCmd.stderr}.`,
+    );
   }
 }
 

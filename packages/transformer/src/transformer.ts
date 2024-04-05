@@ -650,10 +650,14 @@ export function transformer(
               configs.forEach((config) =>
                 genStarlark(repoPath, namespace, config),
               );
-            } catch {
-              console.log(
-                "[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.",
-              );
+            } catch (e) {
+              if (pluginConfig?.verbose === true && e instanceof Error) {
+                console.error(e.message);
+              } else {
+                console.log(
+                  "[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.",
+                );
+              }
             }
             return transformed;
           } else {
