@@ -21,12 +21,7 @@ if (require.main === module) {
     outDir: "dist",
   });
 
-  // twoWaySync(tsProgram, {
-  //   configSrcPath: path.dirname(filename),
-  //   target: "next",
-  //   emitEnv: false,
-  // });
-
+  // TODO: get transformer options from command line
   tsProgram = transformProgram(
     tsProgram,
     undefined,
