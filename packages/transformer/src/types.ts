@@ -42,6 +42,7 @@ export type LekkoComparisonOperator =
   | "COMPARISON_OPERATOR_STARTS_WITH"
   | "COMPARISON_OPERATOR_ENDS_WITH"
   | "COMPARISON_OPERATOR_PRESENT"
+  | "COMPARISON_OPERATOR_CONTAINED_WITHIN"
 
 export type LekkoConfigType =
   | "FEATURE_TYPE_BOOL"
@@ -100,7 +101,7 @@ export type LekkoConfigJSONRule =
 
 export interface LekkoConfigJSONAtom {
   contextKey: string;
-  comparisonValue?: string | number | boolean;
+  comparisonValue?: string | number | boolean | JSONValue[]
   comparisonOperator: LekkoComparisonOperator;
 }
 
