@@ -7,13 +7,14 @@ import {
 } from "@connectrpc/connect/protocol-grpc-web";
 import { fromUint8Array } from "js-base64";
 import { LekkoClientProvider } from "./client";
+import { type EncodedLekkoConfigs } from "./types";
 
-const getRepositoryContents = async (
+async function getRepositoryContents(
   apiKey: string,
   repositoryOwner: string,
   repositoryName: string,
   revalidate: number | false,
-) => {
+) {
   const response = await fetch(
     "https://relay.lekko-cdn.com/" +
       btoa(`${repositoryOwner}/${repositoryName}/${apiKey}`),
@@ -50,7 +51,78 @@ const getRepositoryContents = async (
     throw new Error("Missing repository contents");
   }
   return message;
-};
+}
+
+/**
+ * Fetch Lekko configs for the project. The result be passed to `LekkoClientProvider`
+ * to hydrate client components and make remote configs usable.
+ *
+ * In Pages Router, this can be called in `getServerSideProps` or `getStaticProps`.
+ * If using `getStaticProps`, it's recommended to try to use ISR to ensure the
+ * project can use up-to-date configs.
+ *
+ * In App Router, this can be called in any server component, or `LekkoNextProvider`
+ * can be used instead, which uses this call under the hood.
+ *
+ * Automatically reads relevant Lekko environment variables.
+ */
+export async function getEncodedLekkoConfigs({
+  revalidate,
+  apiKey,
+  repositoryOwner,
+  repositoryName,
+  mode,
+}: {
+  /**
+   * Maximum time, in seconds, of how long Lekko configs fetched from remote
+   * should be cached. This is passed as is to the underlying `fetch()` call
+   * which is patched by Next.js for control over the cacheability of this
+   * call (and as a consequence, the static/dynamic rendering behavior of the
+   * page).
+   *
+   * See relevant Next.js [docs](https://nextjs.org/docs/app/building-your-application/caching#time-based-revalidation)
+   *
+   * Defaults to 15 seconds.
+   */
+  revalidate?: number | false;
+  apiKey?: string;
+  repositoryOwner?: string;
+  repositoryName?: string;
+  mode?: "production" | "development" | "test";
+} = {}): Promise<EncodedLekkoConfigs | undefined> {
+  mode ??= process.env.NODE_ENV;
+  apiKey ??= process.env.NEXT_PUBLIC_LEKKO_API_KEY;
+  repositoryOwner ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
+  repositoryName ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
+
+  if (mode === "production") {
+    if (
+      apiKey === undefined ||
+      repositoryOwner === undefined ||
+      repositoryName === undefined
+    ) {
+      console.warn(
+        "Missing Lekko environment variables, make sure NEXT_PUBLIC_LEKKO_API_KEY, NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER, NEXT_PUBLIC_LEKKO_REPOSITORY_NAME are set. Evaluation will default to static fallback.",
+      );
+      return undefined;
+    }
+    try {
+      const contents = await getRepositoryContents(
+        apiKey,
+        repositoryOwner,
+        repositoryName,
+        revalidate ?? 15,
+      );
+      return fromUint8Array(contents.toBinary());
+    } catch (e) {
+      console.warn(
+        `Failed to fetch and encode config repository contents, will default to static fallback: ${(e as Error).message}`,
+      );
+    }
+  }
+  // No need for fetch in local development
+  return undefined;
+}
 
 export interface LekkoNextProviderProps extends PropsWithChildren {
   /**
@@ -86,39 +158,13 @@ export async function LekkoNextProvider({
   children,
 }: LekkoNextProviderProps) {
   mode ??= process.env.NODE_ENV;
-  const apiKey = process.env.NEXT_PUBLIC_LEKKO_API_KEY;
-  const repositoryOwner = process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
-  const repositoryName = process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
 
-  let encodedContents: string | undefined;
-  if (mode === "production") {
-    if (
-      apiKey === undefined ||
-      repositoryOwner === undefined ||
-      repositoryName === undefined
-    ) {
-      console.warn(
-        "Missing Lekko environment variables, make sure NEXT_PUBLIC_LEKKO_API_KEY, NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER, NEXT_PUBLIC_LEKKO_REPOSITORY_NAME are set. Defaulting to static fallback.",
-      );
-    } else {
-      try {
-        const contents = await getRepositoryContents(
-          apiKey,
-          repositoryOwner,
-          repositoryName,
-          revalidate ?? 15,
-        );
-        encodedContents = fromUint8Array(contents.toBinary());
-      } catch (e) {
-        console.warn(
-          `Failed to fetch and encode config repository contents, defaulting to static fallback: ${(e as Error).message}`,
-        );
-      }
-    }
-  }
+  const encodedContents = await getEncodedLekkoConfigs({ revalidate, mode });
   return (
-    <LekkoClientProvider encodedRepoContents={encodedContents}>
+    <LekkoClientProvider configs={encodedContents}>
       {children}
     </LekkoClientProvider>
   );
 }
+
+export { type EncodedLekkoConfigs };
