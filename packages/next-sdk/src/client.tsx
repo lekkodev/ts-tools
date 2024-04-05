@@ -8,6 +8,7 @@ import {
   useMemo,
 } from "react";
 import { type SyncClient, initAPIClientFromContents } from "@lekko/js-sdk";
+import { type EncodedLekkoConfigs } from "./types";
 
 export type LekkoContext = Record<string, boolean | string | number>;
 
@@ -38,16 +39,16 @@ const LekkoClientContext = createContext<SyncClient | null>(null);
 
 interface LekkoClientProviderProps extends PropsWithChildren {
   /**
-   * Base-64 encoded binary representation of repo contents
+   * Base-64 encoded binary representation of config repository
    */
-  encodedRepoContents?: string;
+  configs?: EncodedLekkoConfigs;
 }
 
 /**
  * @internal Automatically created by LekkoNextProvider
  */
 export function LekkoClientProvider({
-  encodedRepoContents,
+  configs,
   children,
 }: LekkoClientProviderProps) {
   const apiKey = process.env.NEXT_PUBLIC_LEKKO_API_KEY;
@@ -55,11 +56,11 @@ export function LekkoClientProvider({
   const repositoryName = process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
 
   const client = useMemo(() => {
-    if (encodedRepoContents === undefined) {
+    if (configs === undefined) {
       return null;
     }
     try {
-      return initAPIClientFromContents(encodedRepoContents, {
+      return initAPIClientFromContents(configs, {
         apiKey: apiKey ?? "",
         repositoryOwner: repositoryOwner ?? "",
         repositoryName: repositoryName ?? "",
@@ -70,9 +71,9 @@ export function LekkoClientProvider({
       );
       return null;
     }
-  }, [encodedRepoContents]);
+  }, [configs]);
 
-  // Call in useEffect to prevent running during SSR
+  // Call initialize in useEffect to prevent running during SSR
   useEffect(() => {
     if (
       apiKey !== undefined &&
@@ -80,6 +81,7 @@ export function LekkoClientProvider({
       repositoryName !== undefined &&
       client !== null
     ) {
+      // Client is actually initialized above, this just registers and sets up the event tracker
       client.initialize(false).catch(() => {
         console.warn(
           "Failed to register Lekko SDK client, evaluations will not be tracked",
@@ -94,3 +96,5 @@ export function LekkoClientProvider({
     </LekkoClientContext.Provider>
   );
 }
+
+export { type EncodedLekkoConfigs };
