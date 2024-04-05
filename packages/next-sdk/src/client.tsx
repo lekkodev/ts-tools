@@ -45,7 +45,12 @@ interface LekkoClientProviderProps extends PropsWithChildren {
 }
 
 /**
- * @internal Automatically created by LekkoNextProvider
+ * This is a client component that can be used with App Router or Pages Router.
+ *
+ * It should be placed high in the component tree. This provider allows `useLekkoConfig`
+ * calls in the sub-component tree to use dynamic values from Lekko.
+ *
+ * The value for the `configs` prop can be fetched using `getEncodedLekkoConfigs`.
  */
 export function LekkoClientProvider({
   configs,
@@ -73,7 +78,7 @@ export function LekkoClientProvider({
     }
   }, [configs]);
 
-  // Call initialize in useEffect to prevent running during SSR
+  // Call initialize in useEffect to prevent running POST requests during SSR
   useEffect(() => {
     if (
       apiKey !== undefined &&

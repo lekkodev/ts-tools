@@ -54,15 +54,15 @@ async function getRepositoryContents(
 }
 
 /**
- * Fetch Lekko configs for the project. The result be passed to `LekkoClientProvider`
+ * Fetch Lekko configs for the project. The result should be passed to `LekkoClientProvider`
  * to hydrate client components and make remote configs usable.
  *
  * In Pages Router, this can be called in `getServerSideProps` or `getStaticProps`.
- * If using `getStaticProps`, it's recommended to try to use ISR to ensure the
- * project can use up-to-date configs.
+ * If using `getStaticProps`, it's recommended to try to use [ISR](https://nextjs.org/docs/pages/building-your-application/data-fetching/incremental-static-regeneration)
+ * to ensure the project can use up-to-date configs without having to wait for rebuilds.
  *
  * In App Router, this can be called in any server component, or `LekkoNextProvider`
- * can be used instead, which uses this call under the hood.
+ * can be used instead, which uses this function under the hood.
  *
  * Automatically reads relevant Lekko environment variables.
  */
@@ -148,6 +148,8 @@ export interface LekkoNextProviderProps extends PropsWithChildren {
 }
 
 /**
+ * This provider is only compatible with the App Router. For Pages Router, see LekkoClientProvider.
+ *
  * This server-side provider should be placed high in the component tree (e.g. root layout).
  * Client components under it in the component tree will be able to use `useLekkoConfig`
  * to evaluate configs.
