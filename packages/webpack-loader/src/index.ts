@@ -3,7 +3,9 @@ import path from "path";
 import { type LoaderDefinitionFunction, DefinePlugin } from "webpack";
 import transformProgram, { emitEnvVars } from "@lekko/ts-transformer";
 
-export interface LekkoWebpackLoaderOptions {}
+export interface LekkoWebpackLoaderOptions {
+  verbose?: boolean;
+}
 
 // Plugin to be used alongside loader for handling env vars
 // TODO: This is only specific to Next.js right now, should be generalized eventually
@@ -69,6 +71,7 @@ const loader: LekkoWebpackModule = function (source) {
     target: "next",
     configSrcPath: path.dirname(resource),
     emitEnv: false,
+    verbose: this.getOptions().verbose,
   });
   const srcFile = transformed.getSourceFile(resource);
   if (srcFile === undefined) {
