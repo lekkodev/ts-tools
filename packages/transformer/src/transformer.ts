@@ -197,17 +197,12 @@ export function transformer(
       const configName = kebabCase(functionName.substring(3));
       // Check return type
       const isAsync = ts.isAsyncFunction(node);
-      if (target === "node" && !isAsync) {
-        throw new Error("Config function must be async if target is node");
-      } else if (isAsync) {
+      if (isAsync) {
         throw new Error(
-          `Config function must not be async if target is ${target}`,
+          `Config function must not be async`,
         );
       }
-      const returnType =
-        target === "node"
-          ? checker.getPromisedTypeOfPromise(sig.getReturnType())
-          : sig.getReturnType();
+      const returnType = sig.getReturnType();
       assert(returnType, "Unable to parse return type");
 
       return { checkedNode: node, configName, returnType };
@@ -341,7 +336,6 @@ export function transformer(
                                 target !== "node"
                                   ? factory.createIdentifier("client")
                                   : factory.createParenthesizedExpression(
-                                      factory.createAwaitExpression(
                                         factory.createCallExpression(
                                           factory.createPropertyAccessExpression(
                                             factory.createIdentifier("lekko"),
@@ -352,7 +346,6 @@ export function transformer(
                                           undefined,
                                           [],
                                         ),
-                                      ),
                                     ),
                                 factory.createIdentifier("getProto"),
                               ),
@@ -463,37 +456,20 @@ export function transformer(
             wrapTryCatch(
               factory.createBlock(
                 [
-                  target !== "node"
-                    ? factory.createEmptyStatement()
-                    : factory.createExpressionStatement(
-                        factory.createAwaitExpression(
-                          factory.createCallExpression(
-                            // TODO -- this should be top level.. but ts module build shit is horrible
-                            factory.createPropertyAccessExpression(
-                              factory.createIdentifier("lekko"),
-                              factory.createIdentifier("setupClient"),
-                            ),
-                            undefined,
-                            [],
-                          ),
-                        ),
-                      ),
                   factory.createReturnStatement(
                     factory.createCallExpression(
                       factory.createPropertyAccessExpression(
                         target !== "node"
                           ? factory.createIdentifier("client")
                           : factory.createParenthesizedExpression(
-                              factory.createAwaitExpression(
-                                factory.createCallExpression(
-                                  factory.createPropertyAccessExpression(
-                                    factory.createIdentifier("lekko"),
-                                    factory.createIdentifier("getClient"),
-                                  ),
-                                  undefined,
-                                  [],
-                                ),
+                            factory.createCallExpression(
+                              factory.createPropertyAccessExpression(
+                                factory.createIdentifier("lekko"),
+                                factory.createIdentifier("getClient"),
                               ),
+                              undefined,
+                              [],
+                            ),
                             ),
                         factory.createIdentifier(getter),
                       ),
