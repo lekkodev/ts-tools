@@ -130,7 +130,11 @@ export default function transformProgram(
         genIter.next();
       }
     } catch (e) {
-      console.warn("Failed to generate proto bindings, continuing");
+      let msg = "Failed to generate proto bindings, continuing";
+      if (pluginConfig?.verbose == true && e instanceof Error) {
+        msg = `${msg}: ${e.message}`;
+      }
+      console.warn(msg);
     }
   });
   // We need to add these bindings to the program
@@ -156,7 +160,8 @@ export default function transformProgram(
             : ".env",
       );
     } catch (e) {
-      console.warn("[@lekko/ts-transformer]", (e as Error).message);
+      const msg = e instanceof Error ? e.message : e;
+      console.warn("[@lekko/ts-transformer]", msg);
     }
   }
 
