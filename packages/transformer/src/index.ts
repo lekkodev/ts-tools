@@ -32,3 +32,4 @@ if (require.main === module) {
 export default transformProgram;
 
 export { helpers, transformer, emitEnvVars };
+export * as errors from "./errors";

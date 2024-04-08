@@ -3,7 +3,7 @@ module.exports = {
     return {
       "FunctionDeclaration[id] > Identifier[name=/^(?!get[A-Za-z0-9]+$)/]":
         function (node) {
-          context.report(node, "Function names must be like 'getFlagName'.");
+          context.report(node, "Function names must be like 'getConfigName'.");
         },
       "IfStatement[consequent.type!=BlockStatement]": function (node) {
         context.report(node, "Must include {} after if.");
@@ -41,6 +41,9 @@ module.exports = {
             "Invalid top level node: only exported function declarations and interfaces are supported.",
           );
         },
+      "FunctionDeclaration:not([returnType])": function (node) {
+        context.report(node, "Functions must explicitly specify return types.");
+      },
     };
   },
 };

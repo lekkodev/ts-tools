@@ -40,5 +40,10 @@ ruleTester.run("limitations", limitations, {
       code: "export type ComplexType = { field: string }",
       errors: 1,
     },
+    {
+      // No return type
+      code: "export function getSomeBool() { return true; }",
+      errors: 1,
+    },
   ],
 });
