@@ -113,8 +113,21 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
       const propertyAccessExpr = callExpr.expression;
 
       if (ts.isPropertyAccessExpression(propertyAccessExpr)) {
-        const expressionName = propertyAccessExpr.name
-          .text as SupportedExpressionName;
+        const expressionName = propertyAccessExpr.name.text as SupportedExpressionName;
+
+        if (expressionName === "includes" && ts.isArrayLiteralExpression(propertyAccessExpr.expression)) {
+          const contextKey = exprToContextKey(callExpr.arguments[0]);
+          const arrayElements = processArrayElements(propertyAccessExpr.expression.elements)
+
+          return {
+            atom: {
+              contextKey,
+              comparisonValue: arrayElements,
+              comparisonOperator: "COMPARISON_OPERATOR_CONTAINED_WITHIN"
+            }
+          }
+        }
+
         const comparisonOperator = EXPRESSION_NAME_TO_OPERATOR[expressionName];
 
         if (comparisonOperator !== undefined) {
@@ -676,4 +689,20 @@ export function* genProtoBindings(
 
   // Clean up generated bindings
   // rimrafSync(outputPath);
+}
+
+function processArrayElements(elements: ts.NodeArray<ts.Expression>): Array<string | number | boolean> {
+  return elements.map(element => {
+    if (ts.isStringLiteral(element)) {
+      return element.text;
+    } else if (ts.isNumericLiteral(element)) {
+      return +element.text;
+    } else if (element.kind === ts.SyntaxKind.TrueKeyword) {
+      return true;
+    } else if (element.kind === ts.SyntaxKind.FalseKeyword) {
+      return false;
+    } else {
+      return element.getText();
+    }
+  });
 }
