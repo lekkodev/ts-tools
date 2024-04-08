@@ -1,4 +1,3 @@
-import assert from "assert";
 import os from "os";
 import path from "path";
 import { spawnSync } from "child_process";
@@ -15,7 +14,7 @@ import {
 import {
   type CheckedFunctionDeclaration,
   LEKKO_FILENAME_REGEX,
-  isCheckedFunctionDeclaration,
+  assertIsCheckedFunctionDeclaration,
   isLekkoConfigFile,
 } from "./helpers";
 import {
@@ -122,7 +121,7 @@ export default function transformProgram(
             tsInstance.createSourceFile(
               path.join(resolvedConfigSrcPath, fileName),
               contents,
-              ts.ScriptTarget.ES2017,
+              tsInstance.ScriptTarget.ES2017,
             ),
           );
         });
@@ -187,11 +186,7 @@ export function transformer(
       configName: string;
       returnType: ts.Type;
     } {
-      const sig = checker.getSignatureFromDeclaration(node);
-      assert(sig);
-      if (!isCheckedFunctionDeclaration(node)) {
-        throw new Error("Invalid function declaration: missing name or body");
-      }
+      assertIsCheckedFunctionDeclaration(node);
       // Check name
       const functionName = node.name.getFullText().trim();
       if (!/^\s*get[A-Z][A-Za-z]*$/.test(functionName)) {
@@ -201,14 +196,10 @@ export function transformer(
       }
       const configName = kebabCase(functionName.substring(3));
       // Check return type
-      const isAsync = ts.isAsyncFunction(node);
-      if (isAsync) {
-        throw new Error(
-          `Config function must not be async`,
-        );
+      if (tsInstance.isAsyncFunction(node)) {
+        throw new Error("Config function must not be async");
       }
-      const returnType = sig.getReturnType();
-      assert(returnType, "Unable to parse return type");
+      const returnType = checker.getTypeFromTypeNode(node.type);
 
       return { checkedNode: node, configName, returnType };
     }
@@ -341,12 +332,10 @@ export function transformer(
                                 target !== "node"
                                   ? factory.createIdentifier("client")
                                   : factory.createParenthesizedExpression(
-                                          factory.createPropertyAccessExpression(
-                                            factory.createIdentifier("globalThis"),
-                                            factory.createIdentifier(
-                                              "lekkoClient",
-                                            ),
-                                          ),
+                                      factory.createPropertyAccessExpression(
+                                        factory.createIdentifier("globalThis"),
+                                        factory.createIdentifier("lekkoClient"),
+                                      ),
                                     ),
                                 factory.createIdentifier("getProto"),
                               ),
@@ -462,10 +451,10 @@ export function transformer(
                       factory.createPropertyAccessExpression(
                         target !== "node"
                           ? factory.createIdentifier("client")
-                          :  factory.createPropertyAccessExpression(
-                                factory.createIdentifier("globalThis"),
-                                factory.createIdentifier("lekkoClient"),
-                              ),
+                          : factory.createPropertyAccessExpression(
+                              factory.createIdentifier("globalThis"),
+                              factory.createIdentifier("lekkoClient"),
+                            ),
                         factory.createIdentifier(getter),
                       ),
                       undefined,

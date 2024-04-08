@@ -2,6 +2,7 @@ import ts from "typescript";
 import path from "path";
 import { type LoaderDefinitionFunction, DefinePlugin } from "webpack";
 import transformProgram, { emitEnvVars } from "@lekko/ts-transformer";
+import "./serialization";
 
 export interface LekkoWebpackLoaderOptions {
   verbose?: boolean;

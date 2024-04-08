@@ -1,5 +1,6 @@
 import ts from "typescript";
 import path from "node:path";
+import { LekkoFunctionError } from "./errors";
 
 // TODO: We should allow users to specify location
 // **/lekko/<namespace>.ts, namespace must be kebab-case alphanumeric
@@ -26,10 +27,19 @@ export function isIntrinsicType(type: ts.Type): type is ts.IntrinsicType {
 export interface CheckedFunctionDeclaration extends ts.FunctionDeclaration {
   name: ts.Identifier;
   body: ts.Block;
+  type: ts.TypeNode;
 }
 
-export function isCheckedFunctionDeclaration(
+export function assertIsCheckedFunctionDeclaration(
   node: ts.FunctionDeclaration,
-): node is CheckedFunctionDeclaration {
-  return node.name !== undefined && node.body !== undefined;
+): asserts node is CheckedFunctionDeclaration {
+  if (node.name === undefined) {
+    throw new LekkoFunctionError(node, "missing function name");
+  }
+  if (node.body === undefined) {
+    throw new LekkoFunctionError(node, "missing function body");
+  }
+  if (node.type === undefined) {
+    throw new LekkoFunctionError(node, "missing function return type");
+  }
 }
