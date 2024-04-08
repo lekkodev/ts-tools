@@ -1,19 +1,9 @@
 {
   "name": "@lekko/next-sdk",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Lekko Next.js SDK",
-  "exports": {
-    "./server": {
-      "require": "./dist/server.js",
-      "import": "./dist/server.js",
-      "types": "./dist/server.d.ts"
-    },
-    "./client": {
-      "require": "./dist/client.js",
-      "import": "./dist/client.js",
-      "types": "./dist/client.d.ts"
-    }
-  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],

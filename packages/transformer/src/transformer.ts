@@ -130,7 +130,11 @@ export default function transformProgram(
         genIter.next();
       }
     } catch (e) {
-      console.warn("Failed to generate proto bindings, continuing");
+      let msg = "Failed to generate proto bindings, continuing";
+      if (pluginConfig?.verbose == true && e instanceof Error) {
+        msg = `${msg}: ${e.message}`;
+      }
+      console.warn(msg);
     }
   });
   // We need to add these bindings to the program
@@ -156,7 +160,8 @@ export default function transformProgram(
             : ".env",
       );
     } catch (e) {
-      console.warn("[@lekko/ts-transformer]", (e as Error).message);
+      const msg = e instanceof Error ? e.message : e;
+      console.warn("[@lekko/ts-transformer]", msg);
     }
   }
 
@@ -197,17 +202,12 @@ export function transformer(
       const configName = kebabCase(functionName.substring(3));
       // Check return type
       const isAsync = ts.isAsyncFunction(node);
-      if (target === "node" && !isAsync) {
-        throw new Error("Config function must be async if target is node");
-      } else if (isAsync) {
+      if (isAsync) {
         throw new Error(
-          `Config function must not be async if target is ${target}`,
+          `Config function must not be async`,
         );
       }
-      const returnType =
-        target === "node"
-          ? checker.getPromisedTypeOfPromise(sig.getReturnType())
-          : sig.getReturnType();
+      const returnType = sig.getReturnType();
       assert(returnType, "Unable to parse return type");
 
       return { checkedNode: node, configName, returnType };
@@ -341,18 +341,12 @@ export function transformer(
                                 target !== "node"
                                   ? factory.createIdentifier("client")
                                   : factory.createParenthesizedExpression(
-                                      factory.createAwaitExpression(
-                                        factory.createCallExpression(
                                           factory.createPropertyAccessExpression(
-                                            factory.createIdentifier("lekko"),
+                                            factory.createIdentifier("globalThis"),
                                             factory.createIdentifier(
-                                              "getClient",
+                                              "lekkoClient",
                                             ),
                                           ),
-                                          undefined,
-                                          [],
-                                        ),
-                                      ),
                                     ),
                                 factory.createIdentifier("getProto"),
                               ),
@@ -463,38 +457,15 @@ export function transformer(
             wrapTryCatch(
               factory.createBlock(
                 [
-                  target !== "node"
-                    ? factory.createEmptyStatement()
-                    : factory.createExpressionStatement(
-                        factory.createAwaitExpression(
-                          factory.createCallExpression(
-                            // TODO -- this should be top level.. but ts module build shit is horrible
-                            factory.createPropertyAccessExpression(
-                              factory.createIdentifier("lekko"),
-                              factory.createIdentifier("setupClient"),
-                            ),
-                            undefined,
-                            [],
-                          ),
-                        ),
-                      ),
                   factory.createReturnStatement(
                     factory.createCallExpression(
                       factory.createPropertyAccessExpression(
                         target !== "node"
                           ? factory.createIdentifier("client")
-                          : factory.createParenthesizedExpression(
-                              factory.createAwaitExpression(
-                                factory.createCallExpression(
-                                  factory.createPropertyAccessExpression(
-                                    factory.createIdentifier("lekko"),
-                                    factory.createIdentifier("getClient"),
-                                  ),
-                                  undefined,
-                                  [],
-                                ),
+                          :  factory.createPropertyAccessExpression(
+                                factory.createIdentifier("globalThis"),
+                                factory.createIdentifier("lekkoClient"),
                               ),
-                            ),
                         factory.createIdentifier(getter),
                       ),
                       undefined,
@@ -650,10 +621,14 @@ export function transformer(
               configs.forEach((config) =>
                 genStarlark(repoPath, namespace, config),
               );
-            } catch {
-              console.log(
-                "[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.",
-              );
+            } catch (e) {
+              if (pluginConfig?.verbose === true && e instanceof Error) {
+                console.error(e.message);
+              } else {
+                console.log(
+                  "[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.",
+                );
+              }
             }
             return transformed;
           } else {

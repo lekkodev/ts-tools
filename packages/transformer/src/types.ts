@@ -22,6 +22,10 @@ export interface LekkoTransformerOptions extends PluginConfig {
    * alternative filename (e.g. .env.development).
    */
   emitEnv?: boolean | string;
+  /**
+   * Whether to print more verbose output during transformation. Defaults to false.
+   */
+  verbose?: boolean;
 }
 
 export type TransformerTarget = "node" | "vite" | "next";
@@ -127,4 +131,4 @@ export interface ProtoFileBuilder {
   };
 }
 
-export type SupportedExpressionName = 'includes' | 'startsWith' | 'endsWith'
+export type SupportedExpressionName = "includes" | "startsWith" | "endsWith";
