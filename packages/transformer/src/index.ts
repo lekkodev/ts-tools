@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import ts from "typescript";
+import path from "path";
 import { program } from "commander";
 import transformProgram, { transformer } from "./transformer";
 import * as helpers from "./helpers";
@@ -20,10 +21,15 @@ if (require.main === module) {
     outDir: "dist",
   });
 
+  // TODO: get transformer options from command line
   tsProgram = transformProgram(
     tsProgram,
     undefined,
-    { noStatic: true },
+    {
+      configSrcPath: path.dirname(filename),
+      target: "next",
+      emitEnv: false,
+    },
     { ts },
   );
   tsProgram.emit();

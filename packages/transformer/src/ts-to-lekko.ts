@@ -113,19 +113,25 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
       const propertyAccessExpr = callExpr.expression;
 
       if (ts.isPropertyAccessExpression(propertyAccessExpr)) {
-        const expressionName = propertyAccessExpr.name.text as SupportedExpressionName;
+        const expressionName = propertyAccessExpr.name
+          .text as SupportedExpressionName;
 
-        if (expressionName === "includes" && ts.isArrayLiteralExpression(propertyAccessExpr.expression)) {
+        if (
+          expressionName === "includes" &&
+          ts.isArrayLiteralExpression(propertyAccessExpr.expression)
+        ) {
           const contextKey = exprToContextKey(callExpr.arguments[0]);
-          const arrayElements = processArrayElements(propertyAccessExpr.expression.elements)
+          const arrayElements = processArrayElements(
+            propertyAccessExpr.expression.elements,
+          );
 
           return {
             atom: {
               contextKey,
               comparisonValue: arrayElements,
-              comparisonOperator: "COMPARISON_OPERATOR_CONTAINED_WITHIN"
-            }
-          }
+              comparisonOperator: "COMPARISON_OPERATOR_CONTAINED_WITHIN",
+            },
+          };
         }
 
         const comparisonOperator = EXPRESSION_NAME_TO_OPERATOR[expressionName];
@@ -271,6 +277,19 @@ function getLekkoType(
   );
 }
 
+function getDescription(node: ts.FunctionDeclaration): string | undefined {
+  if (node.jsDoc === undefined || node.jsDoc.length === 0) {
+    return undefined;
+  }
+  const comment = node.jsDoc[node.jsDoc.length - 1].comment;
+  if (comment === undefined || typeof comment === "string") {
+    return comment;
+  }
+  // If the comment has jsdoc links, it will be a node array composed of multiple sections.
+  // It's JS-specific, so for now let's not support it.
+  throw new Error("JSDoc links are not supported in Lekko config descriptions");
+}
+
 /**
  * Creates a JSON representation of a Lekko config from a function declaration.
  */
@@ -347,7 +366,7 @@ export function functionToConfigJSON(
   const config: LekkoConfigJSON<typeof configType> = {
     key: configKey,
     // TODO: Handle descriptions
-    description: "Generated from TypeScript",
+    description: getDescription(node) ?? "",
     tree: {
       default: configTreeDefault,
       constraints: configTreeConstraints,
@@ -562,6 +581,43 @@ export function checkCLIDeps() {
   }
 }
 
+/**
+ * Returns list of config names under specified namespace in the config repo
+ */
+export function listConfigs(repoPath: string, namespace: string) {
+  const listCmd = spawnSync("lekko", ["config", "list", "-n", namespace], {
+    encoding: "utf-8",
+    cwd: repoPath,
+  });
+  if (listCmd.error !== undefined || listCmd.status !== 0) {
+    throw new Error(`Failed to list current configs: ${listCmd.stderr}`);
+  }
+  return listCmd.stdout
+    .trim()
+    .split("\n")
+    .map((nsConfigPair) => nsConfigPair.split("/")[1]);
+}
+
+export function removeConfig(
+  repoPath: string,
+  namespace: string,
+  configKey: string,
+) {
+  const removeCmd = spawnSync(
+    "lekko",
+    ["config", "remove", "-n", namespace, "-c", configKey, "--force"],
+    {
+      encoding: "utf-8",
+      cwd: repoPath,
+    },
+  );
+  if (removeCmd.error !== undefined || removeCmd.status !== 0) {
+    throw new Error(
+      `Failed to remove config ${namespace}/${configKey}: ${removeCmd.stderr}`,
+    );
+  }
+}
+
 function getProtoPath(repoPath: string, namespace: string) {
   return path.join(
     repoPath,
@@ -691,8 +747,10 @@ export function* genProtoBindings(
   // rimrafSync(outputPath);
 }
 
-function processArrayElements(elements: ts.NodeArray<ts.Expression>): Array<string | number | boolean> {
-  return elements.map(element => {
+function processArrayElements(
+  elements: ts.NodeArray<ts.Expression>,
+): Array<string | number | boolean> {
+  return elements.map((element) => {
     if (ts.isStringLiteral(element)) {
       return element.text;
     } else if (ts.isNumericLiteral(element)) {
