@@ -18,12 +18,13 @@ import {
   isLekkoConfigFile,
 } from "./helpers";
 import {
-  checkCLIDeps,
   interfaceToProto,
   genProtoBindings,
   genProtoFile,
   functionToConfigJSON,
   genStarlark,
+  listConfigs,
+  removeConfig,
 } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
 import { emitEnvVars } from "./emit-env-vars";
@@ -78,11 +79,27 @@ export function twoWaySync(
           tsInstance.visitEachChild(node, visit, undefined);
           try {
             // The following are per-file operations
-            checkCLIDeps();
+            const configSet = new Set(listConfigs(repoPath, namespace));
             genProtoFile(node, repoPath, protoFileBuilder);
-            configs.forEach((config) =>
-              genStarlark(repoPath, namespace, config),
-            );
+            configs.forEach((config) => {
+              genStarlark(repoPath, namespace, config);
+              // If used to gen starlark, don't remove in cleanup
+              configSet.delete(config.key);
+            });
+            // Remove leftover configs that weren't in ns file
+            // TODO: Batch remove in CLI
+            configSet.forEach((configKey) => {
+              try {
+                removeConfig(repoPath, namespace, configKey);
+              } catch (e) {
+                // Failing to remove is fine, log but ignore
+                if (e instanceof Error) {
+                  console.log(
+                    `[@lekko/ts-transformer] Failed to remove config: ${e.message}`,
+                  );
+                }
+              }
+            });
 
             const genTSCmd = spawnSync(
               "lekko",

@@ -568,6 +568,43 @@ export function checkCLIDeps() {
   }
 }
 
+/**
+ * Returns list of config names under specified namespace in the config repo
+ */
+export function listConfigs(repoPath: string, namespace: string) {
+  const listCmd = spawnSync("lekko", ["config", "list", "-n", namespace], {
+    encoding: "utf-8",
+    cwd: repoPath,
+  });
+  if (listCmd.error !== undefined || listCmd.status !== 0) {
+    throw new Error(`Failed to list current configs: ${listCmd.stderr}`);
+  }
+  return listCmd.stdout
+    .trim()
+    .split("\n")
+    .map((nsConfigPair) => nsConfigPair.split("/")[1]);
+}
+
+export function removeConfig(
+  repoPath: string,
+  namespace: string,
+  configKey: string,
+) {
+  const removeCmd = spawnSync(
+    "lekko",
+    ["config", "remove", "-n", namespace, "-c", configKey, "--force"],
+    {
+      encoding: "utf-8",
+      cwd: repoPath,
+    },
+  );
+  if (removeCmd.error !== undefined || removeCmd.status !== 0) {
+    throw new Error(
+      `Failed to remove config ${namespace}/${configKey}: ${removeCmd.stderr}`,
+    );
+  }
+}
+
 function getProtoPath(repoPath: string, namespace: string) {
   return path.join(
     repoPath,
