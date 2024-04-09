@@ -79,13 +79,12 @@ export function twoWaySync(
           try {
             // The following are per-file operations
             checkCLIDeps();
-            // TODO this needs to be a no-op if the tools aren't there
             genProtoFile(node, repoPath, protoFileBuilder);
             configs.forEach((config) =>
               genStarlark(repoPath, namespace, config),
             );
 
-            const repoCmd = spawnSync(
+            const genTSCmd = spawnSync(
               "lekko",
               [
                 "exp",
@@ -100,22 +99,28 @@ export function twoWaySync(
                 encoding: "utf-8",
               },
             );
-            if (repoCmd.error !== undefined || repoCmd.status !== 0) {
+            if (genTSCmd.error !== undefined || genTSCmd.status !== 0) {
+              // TODO: Should we abort here if we fail to gen TS?
               console.log(`[@lekko/ts-transformer] failed to regenerate ts`);
             }
 
             const prettierCmd = spawnSync("npx", [
               "prettier",
               "-w",
+              "--no-config",
               sourceFile.fileName,
             ]);
             if (prettierCmd.error !== undefined || prettierCmd.status !== 0) {
               console.log(`[@lekko/ts-transformer] failed to run prettier`);
             }
-          } catch {
-            console.log(
-              "[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.",
-            );
+          } catch (e) {
+            if (pluginConfig.verbose === true && e instanceof Error) {
+              console.log(`[@lekko/ts-transformer] ${e.message}`);
+            } else {
+              console.log(
+                "[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.",
+              );
+            }
           }
         }
       } else if (tsInstance.isFunctionDeclaration(node)) {
