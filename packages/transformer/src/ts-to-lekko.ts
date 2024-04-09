@@ -277,6 +277,19 @@ function getLekkoType(
   );
 }
 
+function getDescription(node: ts.FunctionDeclaration): string | undefined {
+  if (node.jsDoc === undefined || node.jsDoc.length === 0) {
+    return undefined;
+  }
+  const comment = node.jsDoc[node.jsDoc.length - 1].comment;
+  if (comment === undefined || typeof comment === "string") {
+    return comment;
+  }
+  // If the comment has jsdoc links, it will be a node array composed of multiple sections.
+  // It's JS-specific, so for now let's not support it.
+  throw new Error("JSDoc links are not supported in Lekko config descriptions");
+}
+
 /**
  * Creates a JSON representation of a Lekko config from a function declaration.
  */
@@ -353,7 +366,7 @@ export function functionToConfigJSON(
   const config: LekkoConfigJSON<typeof configType> = {
     key: configKey,
     // TODO: Handle descriptions
-    description: "",
+    description: getDescription(node) ?? "",
     tree: {
       default: configTreeDefault,
       constraints: configTreeConstraints,
