@@ -89,7 +89,7 @@ export async function getEncodedLekkoConfigs({
   repositoryOwner?: string;
   repositoryName?: string;
   mode?: "production" | "development" | "test";
-} = {}): Promise<EncodedLekkoConfigs | undefined> {
+} = {}): Promise<EncodedLekkoConfigs | null> {
   mode ??= process.env.NODE_ENV;
   apiKey ??= process.env.NEXT_PUBLIC_LEKKO_API_KEY;
   repositoryOwner ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
@@ -104,7 +104,7 @@ export async function getEncodedLekkoConfigs({
       console.warn(
         "Missing Lekko environment variables, make sure NEXT_PUBLIC_LEKKO_API_KEY, NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER, NEXT_PUBLIC_LEKKO_REPOSITORY_NAME are set. Evaluation will default to static fallback.",
       );
-      return undefined;
+      return null;
     }
     try {
       const contents = await getRepositoryContents(
@@ -121,7 +121,7 @@ export async function getEncodedLekkoConfigs({
     }
   }
   // No need for fetch in local development
-  return undefined;
+  return null;
 }
 
 export interface LekkoNextProviderProps extends PropsWithChildren {

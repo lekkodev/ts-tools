@@ -39,9 +39,10 @@ const LekkoClientContext = createContext<SyncClient | null>(null);
 
 interface LekkoClientProviderProps extends PropsWithChildren {
   /**
-   * Base-64 encoded binary representation of config repository
+   * Encoded binary representation of a remote config repository.
+   * See `getEncodedLekkoConfig` for a function to fetch this information.
    */
-  configs?: EncodedLekkoConfigs;
+  configs?: EncodedLekkoConfigs | null;
 }
 
 /**
@@ -61,7 +62,7 @@ export function LekkoClientProvider({
   const repositoryName = process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
 
   const client = useMemo(() => {
-    if (configs === undefined) {
+    if (configs == null) {
       return null;
     }
     try {
