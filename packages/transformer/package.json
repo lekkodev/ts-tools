@@ -4,7 +4,8 @@
   "description": "TypeScript transformer for Lekko config definitions",
   "main": "dist/index.js",
   "bin": {
-    "ts-to-lekko": "dist/index.js"
+    "ts-to-lekko": "dist/index.js",
+    "lekko-repo-pull": "dist/pull.js"
   },
   "devDependencies": {
     "@types/lodash.camelcase": "^4.3.9",
@@ -34,11 +35,7 @@
     "type": "git",
     "url": "git+https://github.com/lekkodev/ts-tools.git"
   },
-  "keywords": [
-    "lekko",
-    "typescript",
-    "ts"
-  ],
+  "keywords": ["lekko", "typescript", "ts"],
   "author": "",
   "license": "MIT",
   "bugs": {
