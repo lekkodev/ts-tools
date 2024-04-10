@@ -9,9 +9,35 @@ import transformProgram, {
 import * as helpers from "./helpers";
 import { emitEnvVars } from "./emit-env-vars";
 import { spawnSync } from "child_process";
+import path from "node:path";
+
+function detectLekkoDir(): string | undefined {
+  for (const dirent of fs.readdirSync(".", {
+    withFileTypes: true,
+    recursive: true,
+  })) {
+    if (dirent.isDirectory() && dirent.name === "lekko") {
+      // sanity check that there is a "gen" directory inside
+      const fullPath = path.join(dirent.path, dirent.name);
+      const genDir = fs
+        .readdirSync(fullPath, {
+          withFileTypes: true,
+        })
+        .find((dirent) => dirent.isDirectory() && dirent.name === "gen");
+      if (genDir !== undefined) {
+        return fullPath;
+      }
+    }
+  }
+  return undefined;
+}
 
 if (require.main === module) {
-  const lekkoDir = "./lekko";
+  const lekkoDir = detectLekkoDir();
+  if (lekkoDir === undefined) {
+    console.error("could not find a valid lekko/ directory in file tree");
+    process.exit(1);
+  }
   fs.readdirSync(lekkoDir).forEach((file) => {
     if (file.endsWith(".ts")) {
       const fullFilename = `${lekkoDir}/${file}`;
