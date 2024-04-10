@@ -33,7 +33,7 @@ import kebabCase from "lodash.kebabcase";
 const CONFIG_IDENTIFIER_NAME = "_config";
 const CTX_IDENTIFIER_NAME = "_ctx";
 
-function getRepoPathFromCLI(): string {
+export function getRepoPathFromCLI(): string {
   const repoCmd = spawnSync("lekko", ["repo", "path"], { encoding: "utf-8" });
   if (repoCmd.error !== undefined || repoCmd.status !== 0) {
     return path.join(
