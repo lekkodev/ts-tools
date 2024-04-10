@@ -10,21 +10,29 @@ export interface LekkoWebpackLoaderOptions {
 
 // Plugin to be used alongside loader for handling env vars
 // TODO: This is only specific to Next.js right now, should be generalized eventually
-class LekkoEnvVarPlugin extends DefinePlugin {
-  constructor() {
-    // No-op if relevant env vars already exist
-    if (
-      process.env.NEXT_PUBLIC_LEKKO_API_KEY !== undefined ||
-      process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER !== undefined ||
-      process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME !== undefined
-    ) {
-      super({});
-      return;
-    }
-
+export class LekkoEnvVarPlugin extends DefinePlugin {
+  constructor({
+    target,
+    prefix,
+  }: {
+    /**
+     * Target "platform" for this plugin. If specified, the env vars will be named
+     * such that they can be picked up by the build tools for frontend usage.
+     * For example, for `next`, env vars will be prefixed with `NEXT_PUBLIC_`.
+     *
+     * If none of the targets suit your project, see `prefix`.
+     */
+    target?: "node" | "vite" | "next";
+    /**
+     * If the preset `target`s are not suitable for your project, you can pass an
+     * optional prefix that will be prepended to each Lekko environment variable.
+     * For example, passing "REACT_APP_" will give "REACT_APP_LEKKO_API_KEY".
+     */
+    prefix?: string;
+  } = {}) {
     let lekkoVars;
     try {
-      lekkoVars = emitEnvVars("next", ".env.local");
+      lekkoVars = emitEnvVars(target, ".env.local", prefix);
     } catch (e) {
       console.log(
         "[LekkoEnvVarPlugin] No Lekko env information found on device, skipping",

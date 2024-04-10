@@ -2,6 +2,12 @@ import * as fs from "fs";
 import { spawnSync } from "child_process";
 import { type TransformerTarget } from "./types";
 
+interface RawLekkoVars {
+  LEKKO_API_KEY: string;
+  LEKKO_REPOSITORY_OWNER: string;
+  LEKKO_REPOSITORY_NAME: string;
+}
+
 interface NodeLekkoVars {
   LEKKO_API_KEY: string;
   LEKKO_REPO_NAME: string;
@@ -21,8 +27,8 @@ interface NextLekkoVars {
 
 // TODO: Classify error types like missing CLI, missing API key, etc.
 function getVarsFromCLI(
-  target: TransformerTarget,
-): NodeLekkoVars | ViteLekkoVars | NextLekkoVars {
+  target?: TransformerTarget,
+): NodeLekkoVars | ViteLekkoVars | NextLekkoVars | RawLekkoVars {
   const apiKeyCmd = spawnSync("lekko", ["apikey", "show"], {
     encoding: "utf-8",
   });
@@ -62,6 +68,14 @@ function getVarsFromCLI(
         NEXT_PUBLIC_LEKKO_REPOSITORY_NAME: name,
       };
     }
+    case undefined: {
+      const [owner, name] = repoName.split("/");
+      return {
+        LEKKO_API_KEY: apiKey,
+        LEKKO_REPOSITORY_OWNER: owner,
+        LEKKO_REPOSITORY_NAME: name,
+      };
+    }
   }
 }
 
@@ -69,8 +83,9 @@ function getVarsFromCLI(
 // This assumption might be challenged at some point.
 // TODO: support CRA env vars
 export function emitEnvVars(
-  target: TransformerTarget,
+  target?: TransformerTarget,
   filename: string = ".env",
+  prefix?: string,
 ) {
   let contents = "";
   try {
@@ -92,6 +107,9 @@ export function emitEnvVars(
 
   // Regex-based search & replace for now
   Object.entries(lekkoVars).forEach(([key, value]) => {
+    if (target === undefined && prefix !== undefined) {
+      key = `${prefix}${key}`;
+    }
     // Find based on key, replace only value
     const pattern = new RegExp(
       `^(?<prefix>${key}[ \t]*=[ \t]*)["']?(?<value>[a-zA-Z0-9_-]*)["']?$`,
