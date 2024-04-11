@@ -101,28 +101,33 @@ export async function getEncodedLekkoConfigs({
   repositoryOwner ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
   repositoryName ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
 
-  if (
-    apiKey === undefined ||
-    repositoryOwner === undefined ||
-    repositoryName === undefined
-  ) {
-    // TODO: Should take user's log level (or similar) settings and emit warning here
-    // But during local dev this is expected
-    return null;
+  // TODO: Remove - use env var presence for local/prod split and consolidate with Next config option
+  if (mode === "production") {
+    if (
+      apiKey === undefined ||
+      repositoryOwner === undefined ||
+      repositoryName === undefined
+    ) {
+      console.warn(
+        "Missing Lekko environment variables, make sure NEXT_PUBLIC_LEKKO_API_KEY, NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER, NEXT_PUBLIC_LEKKO_REPOSITORY_NAME are set. Evaluation will default to static fallback.",
+      );
+      return null;
+    }
+    try {
+      const contents = await getRepositoryContents(
+        apiKey,
+        repositoryOwner,
+        repositoryName,
+        revalidate ?? 15,
+      );
+      return fromUint8Array(contents.toBinary());
+    } catch (e) {
+      console.warn(
+        `Failed to fetch and encode config repository contents, will default to static fallback: ${(e as Error).message}`,
+      );
+    }
   }
-  try {
-    const contents = await getRepositoryContents(
-      apiKey,
-      repositoryOwner,
-      repositoryName,
-      revalidate ?? 15,
-    );
-    return fromUint8Array(contents.toBinary());
-  } catch (e) {
-    console.warn(
-      `Failed to fetch and encode config repository contents, will default to static fallback: ${(e as Error).message}`,
-    );
-  }
+  // No need for fetch in local development
   return null;
 }
 
