@@ -8,6 +8,12 @@ import {
 import { fromUint8Array } from "js-base64";
 import { LekkoClientProvider } from "./client";
 import { type EncodedLekkoConfigs } from "./types";
+import {
+  type GetStaticProps,
+  type GetServerSideProps,
+  type GetServerSidePropsContext,
+  type GetStaticPropsContext,
+} from "next";
 
 async function getRepositoryContents(
   apiKey: string,
@@ -95,6 +101,7 @@ export async function getEncodedLekkoConfigs({
   repositoryOwner ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
   repositoryName ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
 
+  // TODO: Remove - use env var presence for local/prod split
   if (mode === "production") {
     if (
       apiKey === undefined ||
@@ -169,4 +176,57 @@ export async function LekkoNextProvider({
   );
 }
 
-export { type EncodedLekkoConfigs };
+/**
+ * Convenience wrapper for `getServerSideProps` that injects a page prop, `lekkoConfigs` which
+ * should be passed to `LekkoClientProvider`.
+ *
+ * Alternatively, you can manually use `getEncodedLekkoConfigs` in your `getServerSideProps`.
+ */
+export function withLekkoServerSideProps(
+  getServerSidePropsFn?: GetServerSideProps,
+): GetServerSideProps {
+  return async (context: GetServerSidePropsContext) => {
+    const lekkoConfigs = await getEncodedLekkoConfigs();
+
+    const origRet = await getServerSidePropsFn?.(context);
+    const origProps = await (origRet !== undefined && "props" in origRet
+      ? origRet.props
+      : undefined);
+
+    return {
+      ...origRet,
+      props: {
+        ...origProps,
+        lekkoConfigs,
+      },
+    };
+  };
+}
+
+/**
+ * Convenience wrapper for `getStaticProps` that injects a page prop, `lekkoConfigs` which
+ * should be passed to `LekkoClientProvider`.
+ *
+ * If possible, it's recommended to use [ISR](https://nextjs.org/docs/pages/building-your-application/data-fetching/incremental-static-regeneration).
+ *
+ * Alternatively, you can manually use `getEncodedLekkoConfigs` in your `getStaticProps`.
+ */
+export function withLekkoStaticProps(
+  getStaticPropsFn?: GetStaticProps,
+): GetStaticProps {
+  return async (context: GetStaticPropsContext) => {
+    const lekkoConfigs = await getEncodedLekkoConfigs();
+
+    const origRet = await getStaticPropsFn?.(context);
+    const origProps =
+      origRet !== undefined && "props" in origRet ? origRet.props : undefined;
+
+    return {
+      ...origRet,
+      props: {
+        ...origProps,
+        lekkoConfigs,
+      },
+    };
+  };
+}

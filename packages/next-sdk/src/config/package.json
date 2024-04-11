@@ -1,0 +1,4 @@
+{
+  "main": "./withLekko.js",
+  "types": "./withLekko.d.ts"
+}

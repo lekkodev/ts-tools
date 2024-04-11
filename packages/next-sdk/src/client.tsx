@@ -102,5 +102,3 @@ export function LekkoClientProvider({
     </LekkoClientContext.Provider>
   );
 }
-
-export { type EncodedLekkoConfigs };

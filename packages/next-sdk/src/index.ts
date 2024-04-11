@@ -2,6 +2,8 @@ import {
   LekkoNextProvider,
   type LekkoNextProviderProps,
   getEncodedLekkoConfigs,
+  withLekkoServerSideProps,
+  withLekkoStaticProps,
 } from "./server";
 import {
   LekkoClientProvider,
@@ -14,6 +16,8 @@ import { type EncodedLekkoConfigs } from "./types";
 export {
   LekkoNextProvider,
   getEncodedLekkoConfigs,
+  withLekkoServerSideProps,
+  withLekkoStaticProps,
   LekkoClientProvider,
   useLekkoConfig,
 };
