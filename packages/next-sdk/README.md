@@ -2,6 +2,20 @@
 
 ## Usage
 
+In your `next.config.js`, add the Lekko helper. This will perform build-time checks and transformations for your Lekko config functions.
+
+Notice that this wrapper is imported from `@lekko/next-sdk/config` and not just `@lekko/next-sdk`.
+
+```typescript
+const { withLekkoNextConfig } = require("@lekko/next-sdk/config");
+
+const nextConfig = {
+  // Your regular Next.js configs go here
+};
+
+module.exports = withLekkoNextConfig(nextConfig);
+```
+
 In any client component, use the `useLekkoConfig` hook:
 
 ```typescript
@@ -23,12 +37,22 @@ export default function MyClientComponent() {
 }
 ```
 
-Example config function:
+Example config functions:
 
 ```typescript
 // lekko/default.ts
+
+/** Description of some config */
 export function getSomeConfig(): string {
   return "Hi, I'm a config function!";
+}
+
+/** This is a feature flag used somewhere in the app */
+export function getMyFeatureFlag({ userId }: { userId: number }): boolean {
+  if (userId === 15) {
+    return true;
+  }
+  return false;
 }
 ```
 
@@ -69,6 +93,7 @@ import { LekkoClientProvider } from "@lekko/next-sdk";
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
+    // We populate the `lekkoConfigs` prop below
     <LekkoClientProvider configs={pageProps.lekkoConfigs}>
       <Component {...pageProps} />
     </LekkoClientProvider>
@@ -89,15 +114,10 @@ export default function SomePage() {
   return (...);
 }
 
-// This can also be used in getStaticProps
-export const getServerSideProps: GetServerSideProps = async () => {
-  const lekkoConfigs = await getEncodedLekkoConfigs();
-  return {
-    props: {
-      lekkoConfigs, // This is extracted and passed to LekkoClientProvider in _app.tsx
-    },
-  };
-};
+// Wrap your custom getServerSideProps
+export const getServerSideProps = withLekkoServerSideProps(...);
+// Alternatively, for statically rendered pages...
+export const getStaticProps = withLekkoStaticProps(...);
 ```
 
 Note if a page doesn't receive the config contents, its sub-component tree will not be able to use dynamic production values of Lekko configs and will use the static fallback instead.
