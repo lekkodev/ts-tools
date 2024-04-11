@@ -34,6 +34,7 @@ export interface LekkoViteOptions {
    * Pass in a string to use an alternative env var file (e.g. .env.production).
    */
   emitEnv?: boolean | string;
+  verbose?: boolean;
 }
 
 // TODO: Investigate if this can be a compatible Rollup plugin instead
@@ -43,6 +44,7 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
     tsconfigPath = "./tsconfig.json",
     configSrcPath = "./src/lekko",
     emitEnv = true,
+    verbose,
   } = options;
 
   // Parse tsconfig
@@ -95,6 +97,7 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
           // Already being emitted above during init
           emitEnv: false,
           configSrcPath,
+          verbose,
         },
         { ts },
       );
