@@ -2,6 +2,11 @@ import { type NextConfig } from "next";
 import { type Configuration } from "webpack";
 import lekko from "@lekko/webpack-loader";
 
+export interface LekkoNextConfigOptions {
+  verbose?: boolean;
+  mode?: "development" | "production" | "all";
+}
+
 /**
  * Use this function to wrap the rest of your Next.js config object.
  *
@@ -9,7 +14,12 @@ import lekko from "@lekko/webpack-loader";
  * config functions to code that can connect with Lekko's services if the
  * correct environment variables are present.
  */
-export function withLekkoNextConfig(nextConfig: NextConfig): NextConfig {
+export function withLekkoNextConfig(
+  nextConfig: NextConfig,
+  options?: LekkoNextConfigOptions,
+): NextConfig {
+  const { verbose = false, mode = "production" } = options ?? {};
+
   return {
     ...nextConfig,
     // Next.js doesn't give good types for Webpack config object, so we assume
@@ -34,10 +44,13 @@ export function withLekkoNextConfig(nextConfig: NextConfig): NextConfig {
         webpackConfig.plugins = [];
       }
       // TODO: Might need more investigation on how order of loaders works in Next
-      if (process.env.NODE_ENV === "production") {
+      if (mode === "all" || process.env.NODE_ENV === mode) {
         webpackConfig.module.rules.push({
           test: /lekko\/.*\.ts$/,
           loader: "@lekko/webpack-loader",
+          options: {
+            verbose,
+          },
         });
         webpackConfig.plugins.push(
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access

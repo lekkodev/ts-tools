@@ -85,7 +85,9 @@ export function LekkoClientProvider({
       apiKey !== undefined &&
       repositoryOwner !== undefined &&
       repositoryName !== undefined &&
-      client !== null
+      client !== null &&
+      // TODO: Decide if this makes sense in dev and if so clean up interface with next config
+      process.env.NODE_ENV === "production"
     ) {
       // Client is actually initialized above, this just registers and sets up the event tracker
       client.initialize(false).catch(() => {
