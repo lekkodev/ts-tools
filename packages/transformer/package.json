@@ -37,11 +37,7 @@
     "type": "git",
     "url": "git+https://github.com/lekkodev/ts-tools.git"
   },
-  "keywords": [
-    "lekko",
-    "typescript",
-    "ts"
-  ],
+  "keywords": ["lekko", "typescript", "ts"],
   "author": "",
   "license": "MIT",
   "bugs": {
