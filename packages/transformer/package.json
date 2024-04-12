@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "bin": {
     "ts-to-lekko": "dist/index.js",
-    "lekko-repo-pull": "dist/pull.js"
+    "lekko-repo-pull": "dist/pull.js",
+    "lekko-repo-sync": "dist/sync.js"
   },
   "devDependencies": {
     "@types/lodash.camelcase": "^4.3.9",
@@ -17,6 +18,7 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
+    "@commander-js/extra-typings": "^12.0.1",
     "commander": "^12.0.0",
     "lodash.camelcase": "^4.3.0",
     "lodash.kebabcase": "^4.1.1",

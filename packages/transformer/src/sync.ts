@@ -2,7 +2,6 @@
 import fs from "node:fs";
 import ts from "typescript";
 import { twoWaySync, getRepoPathFromCLI } from "./transformer";
-import { spawnSync } from "child_process";
 import { Command } from "@commander-js/extra-typings";
 
 if (require.main === module) {
@@ -26,18 +25,6 @@ if (require.main === module) {
         repoPath: getRepoPathFromCLI(),
         verbose: true,
       });
-
-      const repoCmd = spawnSync(
-        "lekko",
-        ["repo", "merge-file", "-f", fullFilename],
-        {
-          encoding: "utf-8",
-        },
-      );
-      if (repoCmd.error !== undefined || repoCmd.status !== 0) {
-        throw new Error(`failed to pull: ${repoCmd.stdout}${repoCmd.stderr}`);
-      }
-      console.log(repoCmd.stdout.trim());
     }
   });
 }
