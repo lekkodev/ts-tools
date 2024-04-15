@@ -46,7 +46,7 @@ export type LekkoComparisonOperator =
   | "COMPARISON_OPERATOR_STARTS_WITH"
   | "COMPARISON_OPERATOR_ENDS_WITH"
   | "COMPARISON_OPERATOR_PRESENT"
-  | "COMPARISON_OPERATOR_CONTAINED_WITHIN"
+  | "COMPARISON_OPERATOR_CONTAINED_WITHIN";
 
 export type LekkoConfigType =
   | "FEATURE_TYPE_BOOL"
@@ -105,7 +105,7 @@ export type LekkoConfigJSONRule =
 
 export interface LekkoConfigJSONAtom {
   contextKey: string;
-  comparisonValue?: string | number | boolean | JSONValue[]
+  comparisonValue?: string | number | boolean | JSONValue[];
   comparisonOperator: LekkoComparisonOperator;
 }
 
@@ -132,3 +132,6 @@ export interface ProtoFileBuilder {
 }
 
 export type SupportedExpressionName = "includes" | "startsWith" | "endsWith";
+
+export const LEKKO_CLI_NOT_FOUND =
+  "Lekko CLI could not be found. Install it with `brew tap lekkodev/lekko && brew install lekko` and make sure it's located on your PATH.";

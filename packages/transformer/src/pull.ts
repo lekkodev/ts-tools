@@ -1,46 +1,24 @@
 #!/usr/bin/env node
-import fs from "node:fs";
-import ts from "typescript";
-import transformProgram, {
-  transformer,
-  twoWaySync,
-  getRepoPathFromCLI,
-} from "./transformer";
-import * as helpers from "./helpers";
-import { emitEnvVars } from "./emit-env-vars";
+import { Command } from "@commander-js/extra-typings";
 import { spawnSync } from "child_process";
+import fs from "node:fs";
 import path from "node:path";
-
-function detectLekkoDir(): string | undefined {
-  for (const dirent of fs.readdirSync(".", {
-    withFileTypes: true,
-    recursive: true,
-  })) {
-    if (dirent.isDirectory() && dirent.name === "lekko") {
-      // sanity check that there is a "gen" directory inside
-      const fullPath = path.join(dirent.path, dirent.name);
-      const genDir = fs
-        .readdirSync(fullPath, {
-          withFileTypes: true,
-        })
-        .find((dirent) => dirent.isDirectory() && dirent.name === "gen");
-      if (genDir !== undefined) {
-        return fullPath;
-      }
-    }
-  }
-  return undefined;
-}
+import ts from "typescript";
+import { getRepoPathFromCLI, twoWaySync } from "./transformer";
+import { LEKKO_CLI_NOT_FOUND } from "./types";
 
 if (require.main === module) {
-  const lekkoDir = detectLekkoDir();
-  if (lekkoDir === undefined) {
-    console.error("could not find a valid lekko/ directory in file tree");
-    process.exit(1);
-  }
+  const program = new Command().requiredOption(
+    "--lekko-dir <string>",
+    "path to  directory with native Lekko files",
+  );
+  program.parse();
+  const options = program.opts();
+  const lekkoDir = path.normalize(options.lekkoDir);
+
   fs.readdirSync(lekkoDir).forEach((file) => {
     if (file.endsWith(".ts")) {
-      const fullFilename = `${lekkoDir}/${file}`;
+      const fullFilename = path.join(lekkoDir, file);
       const tsProgram = ts.createProgram([fullFilename], {
         target: ts.ScriptTarget.ESNext,
         outDir: "dist",
@@ -51,18 +29,25 @@ if (require.main === module) {
         verbose: true,
       });
 
-      const repoCmd = spawnSync("lekko", ["repo", "pull", "-f", fullFilename], {
+      const repoCmd = spawnSync("lekko", ["merge-file", "-f", fullFilename], {
         encoding: "utf-8",
       });
+      if (repoCmd.error !== undefined) {
+        const err = repoCmd.error as unknown as NodeJS.ErrnoException;
+        if (err.code === "ENOENT") {
+          console.warn(LEKKO_CLI_NOT_FOUND)
+          process.exit(1)
+        }
+      }
+      if (repoCmd.stdout?.includes("unknown command")) {
+        console.warn("Incompatible version of Lekko CLI. Please upgrade with `brew update && brew lekko upgrade`.")
+        process.exit(1)
+      }
       if (repoCmd.error !== undefined || repoCmd.status !== 0) {
-        throw new Error(`failed to pull: ${repoCmd.stdout}${repoCmd.stderr}`);
+        console.warn(`Failed to merge remote changes: ${repoCmd.stdout}`)
+        process.exit(1)
       }
       console.log(repoCmd.stdout.trim());
     }
   });
 }
-
-export default transformProgram;
-
-export { helpers, transformer, emitEnvVars };
-export * as errors from "./errors";

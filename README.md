@@ -11,8 +11,6 @@ brew install lekko
 
 ## Packages
 
-These packages are not published to NPM yet.
-
 ### @lekko/ts-transformer
 
 Installation

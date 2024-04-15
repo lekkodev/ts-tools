@@ -17,6 +17,7 @@ import {
   type LekkoComparisonOperator,
   type LekkoLogicalOperator,
   type SupportedExpressionName,
+  LEKKO_CLI_NOT_FOUND,
 } from "./types";
 //import { rimrafSync } from "rimraf";
 import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
@@ -569,9 +570,7 @@ export function checkCLIDeps() {
     bufCmd.error !== undefined ||
     bufCmd.status !== 0
   ) {
-    throw new Error(
-      "Lekko CLI could not be found. Install it with `brew tap lekkodev/lekko && brew install lekko` and make sure it's located on your PATH.",
-    );
+    throw new Error(LEKKO_CLI_NOT_FOUND);
   }
   const defaultInitCmd = spawnSync("lekko", ["repo", "init-default"], {
     encoding: "utf-8",
