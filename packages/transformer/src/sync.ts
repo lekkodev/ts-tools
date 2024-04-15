@@ -18,7 +18,7 @@ if (require.main === module) {
       const fullFilename = `${lekkoDir}/${file}`;
       const tsProgram = ts.createProgram([fullFilename], {
         target: ts.ScriptTarget.ESNext,
-        outDir: "dist",
+        noEmit: true,
       });
       twoWaySync(tsProgram, {
         configSrcPath: lekkoDir,
