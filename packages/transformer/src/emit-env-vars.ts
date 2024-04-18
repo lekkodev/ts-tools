@@ -34,14 +34,14 @@ function getVarsFromCLI(
   });
   if (apiKeyCmd.error !== undefined || apiKeyCmd.status !== 0) {
     // TODO: Differentiate between missing or other reasons
-    throw new Error("failed to read API key");
+    throw new Error("no api key found. please create it with: lekko apikey create");
   }
   const apiKey = apiKeyCmd.stdout.trim();
 
   const repoCmd = spawnSync("lekko", ["repo", "remote"], { encoding: "utf-8" });
   if (repoCmd.error !== undefined || repoCmd.status !== 0) {
     // TODO: Differentiate between missing or other reasons
-    throw new Error("failed to read repo name");
+    throw new Error("couldn't detect lekko config information. try running lekko repo path --set and lekko repo remote --set");
   }
   const repoName = repoCmd.stdout.trim();
 
@@ -100,9 +100,13 @@ export function emitEnvVars(
   try {
     lekkoVars = getVarsFromCLI(target);
   } catch (e) {
-    throw new Error(
-      "Failed to emit Lekko environment variables: please check that the Lekko CLI is installed and an authorized user is logged in.",
-    );
+    // apperently this works in ES2022 but I can't figure out this mess to make this work    throw new Error("Failed to emit Lekko environment variables", { cause: e });
+    var message = "Unknown error";
+    if (e instanceof Error) {
+      // holy cow I hate typescript. I can't put `e: Error`?????
+      message = e.message;
+    }
+    throw new Error("failed to emit Lekko environment variables: " + message);
   }
 
   // Regex-based search & replace for now
