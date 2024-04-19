@@ -53,13 +53,18 @@ export function twoWaySync(
   pluginConfig: LekkoTransformerOptions,
   extras?: TransformerExtras,
 ) {
-  const { configSrcPath = "", repoPath = "" } = pluginConfig;
+  const { configSrcPath = "./src/lekko", repoPath = "" } = pluginConfig;
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
   const lekkoSourceFiles = program
     .getSourceFiles()
     .filter((sourceFile) =>
       isLekkoConfigFile(sourceFile.fileName, resolvedConfigSrcPath),
     );
+  if (lekkoSourceFiles.length === 0) {
+    console.warn(
+      `[@lekko/ts-transformer] No Lekko files found at "${configSrcPath}", is configSrcPath set correctly?`,
+    );
+  }
 
   const tsInstance = extras?.ts ?? ts;
   const checker = program.getTypeChecker();
@@ -406,7 +411,7 @@ export function transformer(
                 undefined,
                 undefined,
                 factory.createIdentifier(CTX_IDENTIFIER_NAME),
-                undefined,
+                factory.createToken(tsInstance.SyntaxKind.QuestionToken),
                 undefined,
                 undefined,
               ),
@@ -555,7 +560,7 @@ export function transformer(
               undefined,
               undefined,
               CTX_IDENTIFIER_NAME,
-              undefined,
+              factory.createToken(tsInstance.SyntaxKind.QuestionToken),
               undefined,
               undefined,
             ),
@@ -652,32 +657,43 @@ export function transformer(
 
     // Prepend the given body with a variable assignment to make the function's parameters available
     // in the body. No-op if there was no parameter to start.
-    // i.e. adds `const { env } = ctx` to start
+    // i.e. adds `_ctx ??= {}; const { env } = _ctx ?? {}` to start
     function prependParamVars(
       fd: ts.FunctionDeclaration,
       newParamName: string,
       body: ts.Block,
     ): ts.Block {
+      const statements: ts.Statement[] = [
+        factory.createExpressionStatement(
+          factory.createBinaryExpression(
+            factory.createIdentifier(newParamName),
+            factory.createToken(
+              tsInstance.SyntaxKind.QuestionQuestionEqualsToken,
+            ),
+            factory.createObjectLiteralExpression(),
+          ),
+        ),
+      ];
       // Get original first parameter to function
       const param = fd.parameters[0]?.getChildAt(0); // GetChild for discarding type info
-      if (param === undefined) {
-        return body;
+      if (param !== undefined) {
+        statements.push(
+          factory.createVariableStatement(
+            undefined,
+            factory.createVariableDeclarationList([
+              factory.createVariableDeclaration(
+                // This is technically probably not a good way to destructure
+                param.getFullText(),
+                undefined,
+                undefined,
+                factory.createIdentifier(newParamName),
+              ),
+            ]),
+          ),
+        );
       }
-      return factory.createBlock([
-        factory.createVariableStatement(
-          undefined,
-          factory.createVariableDeclarationList([
-            factory.createVariableDeclaration(
-              // This is technically probably not a good way to destructure
-              param.getFullText(),
-              undefined,
-              undefined,
-              factory.createIdentifier(newParamName),
-            ),
-          ]),
-        ),
-        ...body.statements,
-      ]);
+      statements.push(...body.statements);
+      return factory.createBlock(statements);
     }
 
     // Use for handling static fallback

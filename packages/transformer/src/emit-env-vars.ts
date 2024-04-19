@@ -112,7 +112,7 @@ export function emitEnvVars(
     }
     // Find based on key, replace only value
     const pattern = new RegExp(
-      `^(?<prefix>${key}[ \t]*=[ \t]*)["']?(?<value>[a-zA-Z0-9_-]*)["']?$`,
+      `^(?<prefix>${key}[ \t]*=[ \t]*)["']?(?<value>[a-zA-Z0-9_/-]*)["']?$`,
       "m",
     );
     if (pattern.test(contents)) {
