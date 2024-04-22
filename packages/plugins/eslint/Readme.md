@@ -1,4 +1,4 @@
-# eslint-plugin-lekko
+# @lekko/eslint-plugin
 
 The Lekko eslint plugin provides warnings on syntax that is incompatible for Lekko config functions.
 
@@ -6,7 +6,7 @@ This plugin will continue to be updated to better match the list of supported/un
 
 ## Installation
 
-`npm i -D eslint-plugin-lekko`
+`npm i -D @lekko/eslint-plugin`
 
 ## Usage
 
