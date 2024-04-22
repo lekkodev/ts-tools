@@ -54,9 +54,9 @@ const EXPRESSION_NAME_TO_OPERATOR: Partial<
 function exprToContextKey(expr: ts.Expression): string {
   switch (expr.kind) {
     case ts.SyntaxKind.Identifier:
-      return expr.getText();
+      return snakeCase(expr.getText());
     case ts.SyntaxKind.PropertyAccessExpression:
-      return (expr as ts.PropertyAccessExpression).name.getText();
+      return snakeCase((expr as ts.PropertyAccessExpression).name.getText());
     default:
       throw new Error(`need to be able to handle: ${ts.SyntaxKind[expr.kind]}`);
   }
