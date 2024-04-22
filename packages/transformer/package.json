@@ -1,6 +1,6 @@
 {
   "name": "@lekko/ts-transformer",
-  "version": "0.0.8-beta.1",
+  "version": "0.0.8",
   "description": "TypeScript transformer for Lekko config definitions",
   "main": "dist/index.js",
   "bin": {
@@ -13,11 +13,11 @@
     "@types/lodash.kebabcase": "^4.1.9",
     "@types/lodash.snakecase": "^4.1.9",
     "@types/ts-expose-internals": "npm:ts-expose-internals@5.4.2",
-    "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.2"
   },
   "dependencies": {
+    "prettier": "^3.2.5",
     "@commander-js/extra-typings": "^12.0.1",
     "commander": "^12.0.0",
     "lodash.camelcase": "^4.3.0",
