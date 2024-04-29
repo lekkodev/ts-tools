@@ -5,13 +5,16 @@ import { twoWaySync, getRepoPathFromCLI } from "./transformer";
 import { Command } from "@commander-js/extra-typings";
 
 if (require.main === module) {
-  const program = new Command().requiredOption(
-    "--lekko-dir <string>",
-    "path to  directory with native Lekko files",
-  );
+  const program = new Command()
+    .requiredOption(
+      "--lekko-dir <string>",
+      "path to  directory with native Lekko files",
+    )
+    .option("--repo-path <string>", "path to local config repository");
   program.parse();
   const options = program.opts();
   const lekkoDir = options.lekkoDir;
+  const repoPath = options.repoPath ?? getRepoPathFromCLI();
 
   fs.readdirSync(lekkoDir).forEach((file) => {
     if (file.endsWith(".ts")) {
@@ -22,7 +25,7 @@ if (require.main === module) {
       });
       twoWaySync(tsProgram, {
         configSrcPath: lekkoDir,
-        repoPath: getRepoPathFromCLI(),
+        repoPath: repoPath,
         verbose: true,
       });
     }
