@@ -109,7 +109,7 @@ export function twoWaySync(
 
             const genTSCmd = spawnSync(
               "lekko",
-              ["exp", "gen", "ts", "-n", namespace],
+              ["gen", "ts", "-n", namespace, "-r", repoPath],
               {
                 encoding: "utf-8",
               },
