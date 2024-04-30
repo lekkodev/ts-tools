@@ -7,10 +7,10 @@ import {
   type TransformerExtras,
 } from "ts-patch";
 import ts from "typescript";
-import type {
-  ProtoFileBuilder,
-  LekkoConfigJSON,
-  LekkoTransformerOptions,
+import {
+  type ProtoFileBuilder,
+  type LekkoConfigJSON,
+  type LekkoTransformerOptions,
 } from "./types";
 import {
   type CheckedFunctionDeclaration,
@@ -30,6 +30,7 @@ import {
 import { patchCompilerHost, patchProgram } from "./patch";
 import { emitEnvVars } from "./emit-env-vars";
 import kebabCase from "lodash.kebabcase";
+import { LekkoParseError } from "./errors";
 
 const CONFIG_IDENTIFIER_NAME = "_config";
 const CTX_IDENTIFIER_NAME = "_ctx";
@@ -316,8 +317,9 @@ function checkConfigFunctionDeclaration(
   // Check name
   const functionName = node.name.getFullText().trim();
   if (!/^\s*get[A-Z][A-Za-z]*$/.test(functionName)) {
-    throw new Error(
+    throw new LekkoParseError(
       `Unparsable function name "${functionName}": config function names must start with "get"`,
+      node,
     );
   }
   const configName = kebabCase(functionName.substring(3));

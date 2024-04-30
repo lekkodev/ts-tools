@@ -5,6 +5,11 @@ import { twoWaySync, getRepoPathFromCLI } from "./transformer";
 import { Command } from "@commander-js/extra-typings";
 
 if (require.main === module) {
+  process.on("uncaughtException", function (err) {
+    console.error(err);
+    process.exit(1);
+  });
+
   const program = new Command()
     .requiredOption(
       "--lekko-dir <string>",

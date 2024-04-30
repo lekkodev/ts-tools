@@ -8,6 +8,11 @@ import { getRepoPathFromCLI, twoWaySync } from "./transformer";
 import { LEKKO_CLI_NOT_FOUND } from "./types";
 
 if (require.main === module) {
+  process.on("uncaughtException", function (err) {
+    console.error(err);
+    process.exit(1);
+  });
+
   const program = new Command().requiredOption(
     "--lekko-dir <string>",
     "path to  directory with native Lekko files",

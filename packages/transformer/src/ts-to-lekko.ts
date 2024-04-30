@@ -5,6 +5,7 @@ import snakeCase from "lodash.snakecase";
 import fs from "node:fs";
 import path from "node:path";
 import ts, { type TypeChecker } from "typescript";
+import { LekkoParseError } from "./errors";
 import {
   type ProtoFileBuilder,
   type JSONObject,
@@ -19,7 +20,6 @@ import {
   type SupportedExpressionName,
   LEKKO_CLI_NOT_FOUND,
 } from "./types";
-//import { rimrafSync } from "rimraf";
 import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
 
 const COMPARISON_TOKEN_TO_OPERATOR: Partial<
@@ -58,7 +58,10 @@ function exprToContextKey(expr: ts.Expression): string {
     case ts.SyntaxKind.PropertyAccessExpression:
       return snakeCase((expr as ts.PropertyAccessExpression).name.getText());
     default:
-      throw new Error(`need to be able to handle: ${ts.SyntaxKind[expr.kind]}`);
+      throw new LekkoParseError(
+        `need to be able to handle: ${ts.SyntaxKind[expr.kind]}`,
+        expr,
+      );
   }
 }
 
@@ -100,8 +103,9 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
           },
         };
       } else {
-        throw new Error(
+        throw new LekkoParseError(
           `Operator ${ts.SyntaxKind[binaryExpr.operatorToken.kind]} is currently not supported`,
+          binaryExpr.operatorToken,
         );
       }
     }
@@ -116,6 +120,13 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
       if (ts.isPropertyAccessExpression(propertyAccessExpr)) {
         const expressionName = propertyAccessExpr.name
           .text as SupportedExpressionName;
+
+        if (callExpr.arguments.length > 1) {
+          throw new LekkoParseError(
+            `Call expression ${propertyAccessExpr.getText()} with more than one argument is currently not supported`,
+            propertyAccessExpr,
+          );
+        }
 
         if (
           expressionName === "includes" &&
@@ -150,14 +161,16 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
           };
         }
       }
-      throw new Error(
+      throw new LekkoParseError(
         `Call expression ${propertyAccessExpr.getText()} is currently not supported`,
+        propertyAccessExpr,
       );
     }
     // TODO other literal types
     default: {
-      throw new Error(
+      throw new LekkoParseError(
         `need to be able to handle: ${ts.SyntaxKind[expression.kind]}`,
+        expression,
       );
     }
   }
@@ -170,8 +183,9 @@ function ifStatementToRule(
 ) {
   const block = ifStatement.thenStatement as ts.Block;
   if (block.statements.length != 1) {
-    throw new Error(
+    throw new LekkoParseError(
       `Must only contain return statement: ${block.getFullText()}`,
+      block,
     );
   }
   const ret = [
@@ -195,7 +209,10 @@ function ifStatementToRule(
         ),
       );
     } else {
-      throw new Error(`invalid else statement: ${block.getFullText()}`);
+      throw new LekkoParseError(
+        `invalid else statement: ${block.getFullText()}`,
+        block,
+      );
     }
   }
 
@@ -251,13 +268,15 @@ function expressionToProtoValue(
         "@type": `type.googleapis.com/${namespace}.config.v1beta1.${protoType}`,
       };
     default:
-      throw new Error(
+      throw new LekkoParseError(
         `need to be able to handle: ${ts.SyntaxKind[expression.kind]}`,
+        expression,
       );
   }
 }
 
 function getLekkoType(
+  node: ts.Node,
   returnType: ts.Type,
   checker: ts.TypeChecker,
 ): LekkoConfigType {
@@ -273,8 +292,9 @@ function getLekkoType(
   if (returnType.flags & ts.TypeFlags.Object) {
     return "FEATURE_TYPE_PROTO";
   }
-  throw new Error(
+  throw new LekkoParseError(
     `Unsupported TypeScript type: ${returnType.flags} - ${checker.typeToString(returnType)}`,
+    node,
   );
 }
 
@@ -302,7 +322,7 @@ export function functionToConfigJSON(
   returnType: ts.Type,
 ): LekkoConfigJSON {
   // TODO support nested interfaces
-  const configType = getLekkoType(returnType, checker);
+  const configType = getLekkoType(node, returnType, checker);
 
   let valueType: string;
   if (isIntrinsicType(returnType)) {
@@ -354,7 +374,10 @@ export function functionToConfigJSON(
         break;
       }
       default: {
-        throw new Error(`Unable to handle: ${ts.SyntaxKind[statement.kind]}`);
+        throw new LekkoParseError(
+          `Unable to handle: ${ts.SyntaxKind[statement.kind]}`,
+          statement,
+        );
       }
     }
   }
@@ -428,8 +451,9 @@ export function interfaceToProto(
       );
       return `${protoType} ${propertyName} = ${idx + 1};`;
     } else {
-      throw new Error(
+      throw new LekkoParseError(
         `Unsupported member type: ${ts.SyntaxKind[member.kind]} - ${member.getFullText()}`,
+        member,
       );
     }
   });
@@ -746,20 +770,53 @@ export function* genProtoBindings(
   // rimrafSync(outputPath);
 }
 
+function processArrayElement(element: ts.Expression) {
+  if (ts.isStringLiteral(element)) {
+    return element.text;
+  } else if (ts.isNumericLiteral(element)) {
+    return Number(element.text);
+  } else if (element.kind === ts.SyntaxKind.TrueKeyword) {
+    return true;
+  } else if (element.kind === ts.SyntaxKind.FalseKeyword) {
+    return false;
+  } else {
+    return element.getText();
+  }
+}
+
 function processArrayElements(
   elements: ts.NodeArray<ts.Expression>,
 ): Array<string | number | boolean> {
-  return elements.map((element) => {
-    if (ts.isStringLiteral(element)) {
-      return element.text;
-    } else if (ts.isNumericLiteral(element)) {
-      return +element.text;
-    } else if (element.kind === ts.SyntaxKind.TrueKeyword) {
-      return true;
-    } else if (element.kind === ts.SyntaxKind.FalseKeyword) {
-      return false;
-    } else {
-      return element.getText();
+  if (elements.length === 0) {
+    return [];
+  }
+  let elementsType: "string" | "number" | "boolean" | undefined = undefined;
+  const processed = elements.map((element) => {
+    const processedElement = processArrayElement(element);
+    const processedElementType = typeof processedElement;
+    // I don't understand how `processedElementType` can be any of these,
+    // but TypeScript made me do it.
+    if (
+      processedElementType === "bigint" ||
+      processedElementType === "symbol" ||
+      processedElementType === "object" ||
+      processedElementType === "function" ||
+      processedElementType === "undefined"
+    ) {
+      throw new LekkoParseError(
+        `${processedElementType} is not supported`,
+        element,
+      );
     }
+    if (elementsType === undefined) {
+      elementsType = processedElementType;
+    } else if (processedElementType !== elementsType) {
+      throw new LekkoParseError(
+        "Array elements must be of the same type",
+        element,
+      );
+    }
+    return processedElement;
   });
+  return processed;
 }
