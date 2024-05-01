@@ -1,14 +1,12 @@
 import type ts from "typescript";
 
-export class LekkoFunctionError extends Error {
-  constructor(node: ts.FunctionDeclaration, message: string) {
+export class LekkoParseError extends Error {
+  constructor(message: string, node: ts.Node) {
     const { line, character } = node
       .getSourceFile()
       .getLineAndCharacterOfPosition(node.pos);
-    const funcName =
-      node.name?.getFullText().trim() ??
-      `function at ln ${line}, col ${character}`;
-    super(`${funcName}: ${message}`);
-    this.name = "LekkoFunctionError";
+    const filename = node.getSourceFile().fileName;
+    super(`${filename}:${line + 1}:${character + 1} - ${message}`);
+    this.name = "LekkoParseError";
   }
 }

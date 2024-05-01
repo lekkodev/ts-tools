@@ -1,6 +1,6 @@
 import ts from "typescript";
 import path from "node:path";
-import { LekkoFunctionError } from "./errors";
+import { LekkoParseError } from "./errors";
 
 // TODO: We should allow users to specify location
 // **/lekko/<namespace>.ts, namespace must be kebab-case alphanumeric
@@ -34,12 +34,12 @@ export function assertIsCheckedFunctionDeclaration(
   node: ts.FunctionDeclaration,
 ): asserts node is CheckedFunctionDeclaration {
   if (node.name === undefined) {
-    throw new LekkoFunctionError(node, "missing function name");
+    throw new LekkoParseError("missing function name", node);
   }
   if (node.body === undefined) {
-    throw new LekkoFunctionError(node, "missing function body");
+    throw new LekkoParseError("missing function body", node);
   }
   if (node.type === undefined) {
-    throw new LekkoFunctionError(node, "missing function return type");
+    throw new LekkoParseError("missing function return type", node);
   }
 }
