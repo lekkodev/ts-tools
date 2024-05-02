@@ -100,6 +100,9 @@ export type LekkoConfigJSONRule =
       atom: LekkoConfigJSONAtom;
     }
   | {
+      not: LekkoConfigJSONRule;
+    }
+  | {
       logicalExpression: LekkoConfigJSONLogicalExpression;
     };
 

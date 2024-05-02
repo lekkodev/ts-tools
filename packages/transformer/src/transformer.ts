@@ -1,6 +1,5 @@
 import os from "os";
 import path from "path";
-import fs from "fs";
 import { spawnSync } from "child_process";
 import {
   type ProgramTransformerExtras,
@@ -116,24 +115,8 @@ export function twoWaySync(
               },
             );
             if (genTSCmd.error !== undefined || genTSCmd.status !== 0) {
-              throw new Error("Failed to generate TS");
+              throw new Error(`Failed to generate TS:\n${genTSCmd.stdout}`);
             }
-
-            const prettierCmd = spawnSync(
-              "npx",
-              ["prettier", "--parser", "typescript"],
-              {
-                input: genTSCmd.stdout,
-              },
-            );
-            let formattedTS = prettierCmd.stdout;
-            if (prettierCmd.error !== undefined || prettierCmd.status !== 0) {
-              formattedTS = Buffer.from(genTSCmd.stdout, "utf-8");
-              console.warn(
-                `[@lekko/ts-transformer] failed to run prettier: ${prettierCmd.error?.toString()}\n${prettierCmd.stdout.toString()}\n${prettierCmd.stderr.toString()}`,
-              );
-            }
-            fs.writeFileSync(sourceFile.fileName, formattedTS);
           } catch (e) {
             if (pluginConfig.verbose === true && e instanceof Error) {
               console.log(`[@lekko/ts-transformer] ${e.message}`);

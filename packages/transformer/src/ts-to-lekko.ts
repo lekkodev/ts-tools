@@ -101,20 +101,26 @@ function expressionToRule(
     }
     case ts.SyntaxKind.PrefixUnaryExpression: {
       const prefixExpr = expression as ts.PrefixUnaryExpression;
-      if (
-        prefixExpr.operator === ts.SyntaxKind.ExclamationToken &&
-        prefixExpr.operand.kind === ts.SyntaxKind.Identifier
-      ) {
-        const rule = matchBooleanIdentifier(
-          checker,
-          prefixExpr.operand as ts.Identifier,
-          false,
-        );
-        if (rule) {
-          return rule;
+      if (prefixExpr.operator === ts.SyntaxKind.ExclamationToken) {
+        if (prefixExpr.operand.kind === ts.SyntaxKind.Identifier) {
+          const rule = matchBooleanIdentifier(
+            checker,
+            prefixExpr.operand as ts.Identifier,
+            false,
+          );
+          if (rule) {
+            return rule;
+          }
+        } else {
+          return {
+            not: expressionToRule(checker, prefixExpr.operand),
+          };
         }
       }
-      throw new LekkoParseError("Not a boolean expression", expression);
+      throw new LekkoParseError(
+        "Unsupported PrefixUnaryExpression",
+        expression,
+      );
     }
     case ts.SyntaxKind.BinaryExpression: {
       const binaryExpr = expression as ts.BinaryExpression;
