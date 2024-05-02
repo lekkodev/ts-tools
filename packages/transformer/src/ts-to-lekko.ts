@@ -65,8 +65,57 @@ function exprToContextKey(expr: ts.Expression): string {
   }
 }
 
-function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
+function matchBooleanIdentifier(
+  checker: ts.TypeChecker,
+  ident: ts.Identifier,
+  value: boolean,
+): LekkoConfigJSONRule | undefined {
+  const identType = checker.getTypeAtLocation(ident);
+  if (identType.flags & ts.TypeFlags.Boolean) {
+    return {
+      atom: {
+        contextKey: exprToContextKey(ident),
+        comparisonOperator: "COMPARISON_OPERATOR_EQUALS",
+        comparisonValue: value,
+      },
+    };
+  }
+  return undefined;
+}
+
+function expressionToRule(
+  checker: ts.TypeChecker,
+  expression: ts.Expression,
+): LekkoConfigJSONRule {
   switch (expression.kind) {
+    case ts.SyntaxKind.Identifier: {
+      const rule = matchBooleanIdentifier(
+        checker,
+        expression as ts.Identifier,
+        true,
+      );
+      if (rule) {
+        return rule;
+      }
+      throw new LekkoParseError("Not a boolean expression", expression);
+    }
+    case ts.SyntaxKind.PrefixUnaryExpression: {
+      const prefixExpr = expression as ts.PrefixUnaryExpression;
+      if (
+        prefixExpr.operator === ts.SyntaxKind.ExclamationToken &&
+        prefixExpr.operand.kind === ts.SyntaxKind.Identifier
+      ) {
+        const rule = matchBooleanIdentifier(
+          checker,
+          prefixExpr.operand as ts.Identifier,
+          false,
+        );
+        if (rule) {
+          return rule;
+        }
+      }
+      throw new LekkoParseError("Not a boolean expression", expression);
+    }
     case ts.SyntaxKind.BinaryExpression: {
       const binaryExpr = expression as ts.BinaryExpression;
       const tokenKind = binaryExpr.operatorToken.kind;
@@ -96,8 +145,8 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
         return {
           logicalExpression: {
             rules: [
-              expressionToThing(binaryExpr.left),
-              expressionToThing(binaryExpr.right),
+              expressionToRule(checker, binaryExpr.left),
+              expressionToRule(checker, binaryExpr.right),
             ],
             logicalOperator: LOGICAL_TOKEN_TO_OPERATOR[tokenKind]!,
           },
@@ -111,7 +160,7 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
     }
     case ts.SyntaxKind.ParenthesizedExpression: {
       const expr = expression as ts.ParenthesizedExpression;
-      return expressionToThing(expr.expression);
+      return expressionToRule(checker, expr.expression);
     }
     case ts.SyntaxKind.CallExpression: {
       const callExpr = expression as ts.CallExpression;
@@ -177,6 +226,7 @@ function expressionToThing(expression: ts.Expression): LekkoConfigJSONRule {
 }
 
 function ifStatementToRule(
+  checker: ts.TypeChecker,
   ifStatement: ts.IfStatement,
   namespace: string,
   returnType: string,
@@ -190,7 +240,7 @@ function ifStatementToRule(
   }
   const ret = [
     {
-      rule: expressionToThing(ifStatement.expression),
+      rule: expressionToRule(checker, ifStatement.expression),
       value: returnStatementToValue(
         block.statements[0] as ts.ReturnStatement,
         namespace,
@@ -203,6 +253,7 @@ function ifStatementToRule(
     if (ifStatement.elseStatement.kind === ts.SyntaxKind.IfStatement) {
       ret.push(
         ...ifStatementToRule(
+          checker,
           ifStatement.elseStatement as ts.IfStatement,
           namespace,
           returnType,
@@ -348,6 +399,7 @@ export function functionToConfigJSON(
     switch (statement.kind) {
       case ts.SyntaxKind.IfStatement: {
         const ruleValPairs = ifStatementToRule(
+          checker,
           statement as ts.IfStatement,
           namespace,
           valueType,
