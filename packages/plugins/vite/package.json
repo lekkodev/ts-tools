@@ -1,6 +1,6 @@
 {
   "name": "@lekko/vite-plugin",
-  "version": "0.0.2",
+  "version": "0.0.2-beta.1",
   "description": "Vite plugin for working with Lekko configs in TypeScript",
   "type": "module",
   "main": "dist/index.js",
@@ -12,7 +12,7 @@
     "vite": "^5.1.5"
   },
   "dependencies": {
-    "@lekko/ts-transformer": "^0.0.8 || >=0.0.9-beta.1",
+    "@lekko/ts-transformer": "^0.0.8 || >=0.0.9-beta.2",
     "typescript": "~5.4.0"
   },
   "scripts": {
