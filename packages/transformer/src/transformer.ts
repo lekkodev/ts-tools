@@ -287,7 +287,7 @@ export default function transformProgram(
   return updatedProgram;
 }
 
-function checkConfigFunctionDeclaration(
+export function checkConfigFunctionDeclaration(
   tsInstance: typeof ts,
   checker: ts.TypeChecker,
   node: ts.FunctionDeclaration,

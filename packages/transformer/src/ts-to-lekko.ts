@@ -20,7 +20,8 @@ import {
   type SupportedExpressionName,
   LEKKO_CLI_NOT_FOUND,
 } from "./types";
-import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
+import { type CheckedFunctionDeclaration, isIntrinsicType, LEKKO_FILENAME_REGEX } from "./helpers";
+import { checkConfigFunctionDeclaration } from "./transformer";
 
 const COMPARISON_TOKEN_TO_OPERATOR: Partial<
   Record<ts.SyntaxKind, LekkoComparisonOperator>
@@ -877,4 +878,41 @@ function processArrayElements(
     return processedElement;
   });
   return processed;
+}
+
+
+export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program) {
+  const namespace = path.basename(
+    sourceFile.fileName,
+    path.extname(sourceFile.fileName),
+  );
+  const configs: any  = [];
+  const tsInstance = ts;
+  const checker = program.getTypeChecker();
+
+  function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
+    if (tsInstance.isSourceFile(node)  ) {
+      const match = node.fileName.match(LEKKO_FILENAME_REGEX);
+      if (match) {
+        tsInstance.visitEachChild(node, visit, undefined);
+      }
+    } else if (tsInstance.isFunctionDeclaration(node)) {
+      const { checkedNode, configName, returnType } =
+        checkConfigFunctionDeclaration(tsInstance, checker, node);
+      // Apply changes to config repo
+      const configJSON = functionToConfigJSON(
+        checkedNode,
+        checker,
+        namespace,
+        configName,
+        returnType,
+      );
+      configs.push({"static_feature": configJSON});
+    }
+    return undefined;
+  }
+
+  tsInstance.visitNode(sourceFile, visit);
+  
+  return {name: namespace, configs}
 }
