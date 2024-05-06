@@ -153,12 +153,27 @@ function expressionToRule(
           },
         };
       } else if (tokenKind in LOGICAL_TOKEN_TO_OPERATOR) {
+        let rules : LekkoConfigJSONRule[] = [];
+        const left = expressionToRule(checker, binaryExpr.left);
+        //@ts-ignore
+        if (left.logicalExpression !== undefined && left.logicalExpression.logicalOperator === LOGICAL_TOKEN_TO_OPERATOR[tokenKind]) {
+        //@ts-ignore
+          rules = rules.concat(left.logicalExpression.rules);
+        } else {
+          rules.push(left);
+        }
+        const right = expressionToRule(checker, binaryExpr.right);
+        //@ts-ignore
+        if (right.logicalExpression !== undefined && right.logicalExpression.logicalOperator === LOGICAL_TOKEN_TO_OPERATOR[tokenKind]) {
+        //@ts-ignore
+          rules = rules.concat(right.logicalExpression.rules);
+        } else {
+          rules.push(right);
+        }
+
         return {
           logicalExpression: {
-            rules: [
-              expressionToRule(checker, binaryExpr.left),
-              expressionToRule(checker, binaryExpr.right),
-            ],
+            rules,
             logicalOperator: LOGICAL_TOKEN_TO_OPERATOR[tokenKind]!,
           },
         };
