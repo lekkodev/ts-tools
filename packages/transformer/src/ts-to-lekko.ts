@@ -294,7 +294,7 @@ function returnStatementToValue(
 // HACK: Essential eval(), it's an easy way to handle string literals, etc.
 function expressionToJsonValue(expression: ts.Expression): JSONValue {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-implied-eval
-  return Function(`return ${expression.getFullText()}`)();
+  return Function(`return ${expression.getFullText().trim()}`)();
 }
 
 function expressionToProtoValue(
