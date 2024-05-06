@@ -4,8 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { sourceFileToJson } from "./ts-to-lekko";
-import {   isLekkoConfigFile,
-} from "./helpers";
+import { isLekkoConfigFile } from "./helpers";
 
 if (require.main === module) {
   process.on("uncaughtException", function (err) {
@@ -21,13 +20,20 @@ if (require.main === module) {
   const options = program.opts();
   const lekkoDir = path.normalize(options.lekkoDir);
 
-  const files = fs.readdirSync(lekkoDir).filter((file) => file.endsWith(".ts")).map((file) => path.join(lekkoDir, file));
+  const files = fs
+    .readdirSync(lekkoDir)
+    .filter((file) => file.endsWith(".ts"))
+    .map((file) => path.join(lekkoDir, file));
   const tsProgram = ts.createProgram(files, {
     target: ts.ScriptTarget.ESNext,
     outDir: "dist",
   });
-  const lekkoSourceFiles = tsProgram.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, lekkoDir));
+  const lekkoSourceFiles = tsProgram
+    .getSourceFiles()
+    .filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, lekkoDir));
 
-  const json = lekkoSourceFiles.map((file) => sourceFileToJson(file, tsProgram));
-  console.log(JSON.stringify({namespaces: json}));
+  const json = lekkoSourceFiles.map((file) =>
+    sourceFileToJson(file, tsProgram),
+  );
+  console.log(JSON.stringify({ namespaces: json }));
 }

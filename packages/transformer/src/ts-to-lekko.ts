@@ -20,7 +20,11 @@ import {
   type SupportedExpressionName,
   LEKKO_CLI_NOT_FOUND,
 } from "./types";
-import { type CheckedFunctionDeclaration, isIntrinsicType, LEKKO_FILENAME_REGEX } from "./helpers";
+import {
+  type CheckedFunctionDeclaration,
+  isIntrinsicType,
+  LEKKO_FILENAME_REGEX,
+} from "./helpers";
 import { checkConfigFunctionDeclaration } from "./transformer";
 
 const COMPARISON_TOKEN_TO_OPERATOR: Partial<
@@ -880,18 +884,20 @@ function processArrayElements(
   return processed;
 }
 
-
-export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program) {
+export function sourceFileToJson(
+  sourceFile: ts.SourceFile,
+  program: ts.Program,
+) {
   const namespace = path.basename(
     sourceFile.fileName,
     path.extname(sourceFile.fileName),
   );
-  const configs: any  = [];
+  const configs: any = [];
   const tsInstance = ts;
   const checker = program.getTypeChecker();
 
   function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
-    if (tsInstance.isSourceFile(node)  ) {
+    if (tsInstance.isSourceFile(node)) {
       const match = node.fileName.match(LEKKO_FILENAME_REGEX);
       if (match) {
         tsInstance.visitEachChild(node, visit, undefined);
@@ -907,12 +913,12 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
         configName,
         returnType,
       );
-      configs.push({"static_feature": configJSON});
+      configs.push({ static_feature: configJSON });
     }
     return undefined;
   }
 
   tsInstance.visitNode(sourceFile, visit);
-  
-  return {name: namespace, configs}
+
+  return { name: namespace, configs };
 }

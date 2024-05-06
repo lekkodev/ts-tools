@@ -40,17 +40,19 @@ if (require.main === module) {
       if (repoCmd.error !== undefined) {
         const err = repoCmd.error as unknown as NodeJS.ErrnoException;
         if (err.code === "ENOENT") {
-          console.warn(LEKKO_CLI_NOT_FOUND)
-          process.exit(1)
+          console.warn(LEKKO_CLI_NOT_FOUND);
+          process.exit(1);
         }
       }
       if (repoCmd.stdout?.includes("unknown command")) {
-        console.warn("Incompatible version of Lekko CLI. Please upgrade with `brew update && brew lekko upgrade`.")
-        process.exit(1)
+        console.warn(
+          "Incompatible version of Lekko CLI. Please upgrade with `brew update && brew lekko upgrade`.",
+        );
+        process.exit(1);
       }
       if (repoCmd.error !== undefined || repoCmd.status !== 0) {
-        console.warn(`Failed to merge remote changes: ${repoCmd.stdout}`)
-        process.exit(1)
+        console.warn(`Failed to merge remote changes: ${repoCmd.stdout}`);
+        process.exit(1);
       }
       console.log(repoCmd.stdout.trim());
     }
