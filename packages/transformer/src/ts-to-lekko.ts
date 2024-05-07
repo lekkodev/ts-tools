@@ -20,7 +20,12 @@ import {
   type SupportedExpressionName,
   LEKKO_CLI_NOT_FOUND,
 } from "./types";
-import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
+import {
+  type CheckedFunctionDeclaration,
+  isIntrinsicType,
+  LEKKO_FILENAME_REGEX,
+} from "./helpers";
+import { checkConfigFunctionDeclaration } from "./transformer";
 
 const COMPARISON_TOKEN_TO_OPERATOR: Partial<
   Record<ts.SyntaxKind, LekkoComparisonOperator>
@@ -148,12 +153,27 @@ function expressionToRule(
           },
         };
       } else if (tokenKind in LOGICAL_TOKEN_TO_OPERATOR) {
+        let rules : LekkoConfigJSONRule[] = [];
+        const left = expressionToRule(checker, binaryExpr.left);
+        //@ts-ignore
+        if (left.logicalExpression !== undefined && left.logicalExpression.logicalOperator === LOGICAL_TOKEN_TO_OPERATOR[tokenKind]) {
+        //@ts-ignore
+          rules = rules.concat(left.logicalExpression.rules);
+        } else {
+          rules.push(left);
+        }
+        const right = expressionToRule(checker, binaryExpr.right);
+        //@ts-ignore
+        if (right.logicalExpression !== undefined && right.logicalExpression.logicalOperator === LOGICAL_TOKEN_TO_OPERATOR[tokenKind]) {
+        //@ts-ignore
+          rules = rules.concat(right.logicalExpression.rules);
+        } else {
+          rules.push(right);
+        }
+
         return {
           logicalExpression: {
-            rules: [
-              expressionToRule(checker, binaryExpr.left),
-              expressionToRule(checker, binaryExpr.right),
-            ],
+            rules,
             logicalOperator: LOGICAL_TOKEN_TO_OPERATOR[tokenKind]!,
           },
         };
@@ -289,7 +309,7 @@ function returnStatementToValue(
 // HACK: Essential eval(), it's an easy way to handle string literals, etc.
 function expressionToJsonValue(expression: ts.Expression): JSONValue {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-implied-eval
-  return Function(`return ${expression.getFullText()}`)();
+  return Function(`return ${expression.getFullText().trim()}`)();
 }
 
 function expressionToProtoValue(
@@ -877,4 +897,43 @@ function processArrayElements(
     return processedElement;
   });
   return processed;
+}
+
+export function sourceFileToJson(
+  sourceFile: ts.SourceFile,
+  program: ts.Program,
+) {
+  const namespace = path.basename(
+    sourceFile.fileName,
+    path.extname(sourceFile.fileName),
+  );
+  const configs: any = [];
+  const tsInstance = ts;
+  const checker = program.getTypeChecker();
+
+  function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
+    if (tsInstance.isSourceFile(node)) {
+      const match = node.fileName.match(LEKKO_FILENAME_REGEX);
+      if (match) {
+        tsInstance.visitEachChild(node, visit, undefined);
+      }
+    } else if (tsInstance.isFunctionDeclaration(node)) {
+      const { checkedNode, configName, returnType } =
+        checkConfigFunctionDeclaration(tsInstance, checker, node);
+      // Apply changes to config repo
+      const configJSON = functionToConfigJSON(
+        checkedNode,
+        checker,
+        namespace,
+        configName,
+        returnType,
+      );
+      configs.push({ static_feature: configJSON });
+    }
+    return undefined;
+  }
+
+  tsInstance.visitNode(sourceFile, visit);
+
+  return { name: namespace, configs };
 }
