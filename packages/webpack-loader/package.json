@@ -1,13 +1,13 @@
 {
   "name": "@lekko/webpack-loader",
-  "version": "0.0.7",
+  "version": "0.0.8-beta.1",
   "description": "",
   "main": "dist/index.js",
   "devDependencies": {
     "@types/webpack": "^5.28.5"
   },
   "dependencies": {
-    "@lekko/ts-transformer": "^0.0.8 || >=0.0.9-beta.1",
+    "@lekko/ts-transformer": "^0.0.8 || >=0.0.9-beta.5",
     "webpack": "^5.0.0",
     "typescript": "~5.4.0"
   },

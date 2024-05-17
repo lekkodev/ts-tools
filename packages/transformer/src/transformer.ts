@@ -101,7 +101,7 @@ export function twoWaySync(
                 // Failing to remove is fine, log but ignore
                 if (e instanceof Error) {
                   console.log(
-                    `[@lekko/ts-transformer] Failed to remove config: ${e.message}`,
+                    `[@lekko/ts-transformer] Failed to remove config ${namespace}/${configKey}: ${e.message}`,
                   );
                 }
               }
@@ -222,11 +222,13 @@ export default function transformProgram(
       path.extname(sourceFile.fileName),
     );
 
+    const printed = printer.printFile(sourceFile);
+
     sfCache.set(
       sourceFile.fileName,
       tsInstance.createSourceFile(
         sourceFile.fileName,
-        printer.printFile(sourceFile),
+        printed,
         sourceFile.languageVersion,
       ),
     );
@@ -254,6 +256,14 @@ export default function transformProgram(
         msg = `${msg}: ${e.message}`;
       }
       console.warn(msg);
+    }
+
+    if (pluginConfig?.verbose) {
+      console.log("-".repeat(12 + sourceFile.fileName.length));
+      console.log(`Transformed ${sourceFile.fileName}:`);
+      console.log("-".repeat(12 + sourceFile.fileName.length));
+      console.log(printed);
+      console.log("-".repeat(12 + sourceFile.fileName.length));
     }
   });
   // We need to add these bindings to the program
