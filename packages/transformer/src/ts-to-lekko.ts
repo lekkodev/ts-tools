@@ -497,7 +497,7 @@ export function genStarlark(
   fs.writeFileSync(path.join(jsonDir, `${config.key}.json`), configJSON);
   const spawnReturns = spawnSync(
     "lekko",
-    ["exp", "gen", "starlark", "-n", namespace, "-c", config.key],
+    ["gen", "starlark", "-n", namespace, "-c", config.key],
     {
       encoding: "utf-8",
       cwd: repoPath,
