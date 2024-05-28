@@ -1,6 +1,6 @@
 {
   "name": "@lekko/ts-transformer",
-  "version": "0.0.9-beta.8",
+  "version": "0.0.9-beta.9",
   "description": "TypeScript transformer for Lekko config definitions",
   "main": "dist/index.js",
   "bin": {

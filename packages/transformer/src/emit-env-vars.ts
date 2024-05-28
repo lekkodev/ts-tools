@@ -32,7 +32,11 @@ function getVarsFromCLI(
   const apiKeyCmd = spawnSync("lekko", ["apikey", "show"], {
     encoding: "utf-8",
   });
-  if (apiKeyCmd.error !== undefined || apiKeyCmd.status !== 0) {
+  if (
+    apiKeyCmd.error !== undefined ||
+    apiKeyCmd.status !== 0 ||
+    apiKeyCmd.stdout.trim() === ""
+  ) {
     // TODO: Differentiate between missing or other reasons
     throw new Error("failed to read API key");
   }

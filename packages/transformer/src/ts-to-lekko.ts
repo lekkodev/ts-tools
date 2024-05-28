@@ -695,7 +695,9 @@ export function listConfigs(repoPath: string, namespace: string) {
     cwd: repoPath,
   });
   if (listCmd.error !== undefined || listCmd.status !== 0) {
-    throw new Error(`Failed to list current configs: ${listCmd.stderr}`);
+    throw new Error(
+      `Failed to list current configs: ${listCmd.stdout}${listCmd.stderr}`,
+    );
   }
   return listCmd.stdout
     .trim()
@@ -718,7 +720,7 @@ export function removeConfig(
   );
   if (removeCmd.error !== undefined || removeCmd.status !== 0) {
     throw new Error(
-      `Failed to remove config ${namespace}/${configKey}: ${removeCmd.stderr}`,
+      `Failed to remove config ${namespace}/${configKey}: ${removeCmd.stdout}${removeCmd.stderr}`,
     );
   }
 }
@@ -911,7 +913,7 @@ export function sourceFileToJson(
     sourceFile.fileName,
     path.extname(sourceFile.fileName),
   );
-  const configs: any = [];
+  const configs: { static_feature: LekkoConfigJSON }[] = [];
   const tsInstance = ts;
   const checker = program.getTypeChecker();
 
