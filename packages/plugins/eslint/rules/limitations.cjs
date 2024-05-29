@@ -16,17 +16,25 @@ module.exports = {
       },
       'BinaryExpression[left.type!="Identifier"][left.type!="BinaryExpression"][right.type!="Literal"][right.type!="BinaryExpression"]':
         function (node) {
-          context.report(
+          context.report({
             node,
-            "Literals must be on the right side of binary expressions.",
-          );
+            message: "Literals must be on the right side of binary expressions.",
+            fix(fixer) {
+              console.log(node);
+              console.log([node.right.name, node.operator, node.left.raw].join(" "))
+              console.log(fixer.replaceText(node, [node.right.name, node.operator, node.left.raw].join(" ")));
+              fixer.replaceText(node, [node.right.name, node.operator, node.left.raw].join(" "))
+            }
+          });
         },
       "FunctionDeclaration > BlockStatement > :not(:matches(IfStatement,  ReturnStatement))":
         function (node) {
-          context.report(
+          context.report({
             node,
-            "Only if and return statements are allowed inside config functions.",
-          );
+            message: "Only if and return statements are allowed inside config functions.",
+            fix(fixer) {
+            }
+          });
         },
       ":not(ExportNamedDeclaration) > FunctionDeclaration": function (node) {
         context.report(node, "Functions must be exported.");
