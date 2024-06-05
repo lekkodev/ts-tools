@@ -745,10 +745,7 @@ export function symbolToDescriptorProto(node: ts.Symbol, checker: TypeChecker, m
   return ret;
 }
 
-// todo - I think we want PATH not message name
-// namespace.MessageName as path
 function tsTypeToProtoFieldDescription(d: DescriptorProto, checker: TypeChecker, type: ts.Type, fieldName: ProtoName, path: string, fieldNumber: number) {
-  // TODO handle Sub-Messages
   const fd = {
     name: fieldName.fieldName(),
     number: fieldNumber,
@@ -840,6 +837,7 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
   const checker = program.getTypeChecker();
   const fds = new FileDescriptorProto({
     package: `lekko.${namespace}`,
+    syntax: 'proto3',
     // TODO
   });
 
