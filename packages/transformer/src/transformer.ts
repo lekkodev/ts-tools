@@ -1,31 +1,11 @@
 import os from "os";
 import path from "path";
 import { spawnSync } from "child_process";
-import {
-  type ProgramTransformerExtras,
-  type TransformerExtras,
-} from "ts-patch";
+import { type ProgramTransformerExtras, type TransformerExtras } from "ts-patch";
 import ts from "typescript";
-import {
-  type ProtoFileBuilder,
-  type LekkoConfigJSON,
-  type LekkoTransformerOptions,
-} from "./types";
-import {
-  type CheckedFunctionDeclaration,
-  LEKKO_FILENAME_REGEX,
-  assertIsCheckedFunctionDeclaration,
-  isLekkoConfigFile,
-} from "./helpers";
-import {
-  interfaceToProto,
-  genProtoBindings,
-  genProtoFile,
-  functionToConfigJSON,
-  genStarlark,
-  listConfigs,
-  removeConfig,
-} from "./ts-to-lekko";
+import { type ProtoFileBuilder, type LekkoConfigJSON, type LekkoTransformerOptions } from "./types";
+import { type CheckedFunctionDeclaration, LEKKO_FILENAME_REGEX, assertIsCheckedFunctionDeclaration, isLekkoConfigFile } from "./helpers";
+import { interfaceToProto, genProtoBindings, genProtoFile, functionToConfigJSON, genStarlark, listConfigs, removeConfig } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
 import { emitEnvVars } from "./emit-env-vars";
 import kebabCase from "lodash.kebabcase";
@@ -37,10 +17,7 @@ const CTX_IDENTIFIER_NAME = "_ctx";
 export function getRepoPathFromCLI(): string {
   const repoCmd = spawnSync("lekko", ["repo", "path"], { encoding: "utf-8" });
   if (repoCmd.error !== undefined || repoCmd.status !== 0) {
-    return path.join(
-      os.homedir(),
-      "Library/Application Support/Lekko/Config Repositories/default/",
-    );
+    return path.join(os.homedir(), "Library/Application Support/Lekko/Config Repositories/default/");
   }
   return repoCmd.stdout.trim();
 }
@@ -48,22 +25,12 @@ export function getRepoPathFromCLI(): string {
 /**
  * Generate Proto and Starlark from Typescript and then regenerate Typescript back
  */
-export function twoWaySync(
-  program: ts.Program,
-  pluginConfig: LekkoTransformerOptions,
-  extras?: TransformerExtras,
-) {
+export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOptions, extras?: TransformerExtras) {
   const { configSrcPath = "./src/lekko", repoPath = "" } = pluginConfig;
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
-  const lekkoSourceFiles = program
-    .getSourceFiles()
-    .filter((sourceFile) =>
-      isLekkoConfigFile(sourceFile.fileName, resolvedConfigSrcPath),
-    );
+  const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, resolvedConfigSrcPath));
   if (lekkoSourceFiles.length === 0) {
-    console.warn(
-      `[@lekko/ts-transformer] No Lekko files found at "${configSrcPath}", is configSrcPath set correctly?`,
-    );
+    console.warn(`[@lekko/ts-transformer] No Lekko files found at "${configSrcPath}", is configSrcPath set correctly?`);
   }
 
   const tsInstance = extras?.ts ?? ts;
@@ -73,10 +40,7 @@ export function twoWaySync(
   const configs: LekkoConfigJSON[] = [];
 
   function visitSourceFile(sourceFile: ts.SourceFile) {
-    const namespace = path.basename(
-      sourceFile.fileName,
-      path.extname(sourceFile.fileName),
-    );
+    const namespace = path.basename(sourceFile.fileName, path.extname(sourceFile.fileName));
 
     function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
       if (tsInstance.isSourceFile(node)) {
@@ -100,20 +64,14 @@ export function twoWaySync(
               } catch (e) {
                 // Failing to remove is fine, log but ignore
                 if (e instanceof Error) {
-                  console.log(
-                    `[@lekko/ts-transformer] Failed to remove config ${namespace}/${configKey}: ${e.message}`,
-                  );
+                  console.log(`[@lekko/ts-transformer] Failed to remove config ${namespace}/${configKey}: ${e.message}`);
                 }
               }
             });
 
-            const genTSCmd = spawnSync(
-              "lekko",
-              ["gen", "ts", "-n", namespace, "-r", repoPath],
-              {
-                encoding: "utf-8",
-              },
-            );
+            const genTSCmd = spawnSync("lekko", ["gen", "ts", "-n", namespace, "-r", repoPath], {
+              encoding: "utf-8",
+            });
             if (genTSCmd.error !== undefined || genTSCmd.status !== 0) {
               throw new Error(`Failed to generate TS:\n${genTSCmd.stdout}`);
             }
@@ -121,23 +79,14 @@ export function twoWaySync(
             if (pluginConfig.verbose === true && e instanceof Error) {
               console.log(`[@lekko/ts-transformer] ${e.message}`);
             } else {
-              console.log(
-                "[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.",
-              );
+              console.log("[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.");
             }
           }
         }
       } else if (tsInstance.isFunctionDeclaration(node)) {
-        const { checkedNode, configName, returnType } =
-          checkConfigFunctionDeclaration(tsInstance, checker, node);
+        const { checkedNode, configName, returnType } = checkConfigFunctionDeclaration(tsInstance, checker, node);
         // Apply changes to config repo
-        const configJSON = functionToConfigJSON(
-          checkedNode,
-          checker,
-          namespace,
-          configName,
-          returnType,
-        );
+        const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
         configs.push(configJSON);
       } else if (tsInstance.isInterfaceDeclaration(node)) {
         interfaceToProto(node, checker, protoFileBuilder);
@@ -161,21 +110,13 @@ export default function transformProgram(
 ) {
   pluginConfig = pluginConfig ?? {};
   pluginConfig.repoPath ||= getRepoPathFromCLI();
-  const {
-    repoPath = "",
-    configSrcPath = "./src/lekko",
-    emitEnv = true,
-    target = "node",
-  } = pluginConfig ?? {};
+  const { repoPath = "", configSrcPath = "./src/lekko", emitEnv = true, target = "node" } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
 
   const compilerOptions = program.getCompilerOptions();
   const tsInstance = extras?.ts ?? ts;
-  const rootFileNames = program
-    .getRootFileNames()
-    .map(tsInstance.normalizePath);
-  const compilerHost =
-    host ?? tsInstance.createCompilerHost(compilerOptions, true);
+  const rootFileNames = program.getRootFileNames().map(tsInstance.normalizePath);
+  const compilerHost = host ?? tsInstance.createCompilerHost(compilerOptions, true);
 
   // Patch host to make the generated and transformed source files available
   const sfCache = new Map<string, ts.SourceFile>();
@@ -184,11 +125,7 @@ export default function transformProgram(
   // We run our source transformer on existing source files first.
   // As a side effect, this pushes configs generated from Lekko-TS files to the
   // local config repo (starlark + protos).
-  const lekkoSourceFiles = program
-    .getSourceFiles()
-    .filter((sourceFile) =>
-      isLekkoConfigFile(sourceFile.fileName, resolvedConfigSrcPath),
-    );
+  const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, resolvedConfigSrcPath));
 
   const transformerExtras = {
     ts: tsInstance,
@@ -200,11 +137,7 @@ export default function transformProgram(
 
   twoWaySync(program, pluginConfig, transformerExtras);
 
-  let updatedProgram = tsInstance.createProgram(
-    [...rootFileNames, ...sfCache.keys()],
-    compilerOptions,
-    compilerHost,
-  );
+  let updatedProgram = tsInstance.createProgram([...rootFileNames, ...sfCache.keys()], compilerOptions, compilerHost);
 
   const transformedSources = tsInstance.transform(
     lekkoSourceFiles,
@@ -217,21 +150,11 @@ export default function transformProgram(
   // Then, we need to generate proto bindings and add the generated + transformed source files to the program
   const printer = tsInstance.createPrinter();
   transformedSources.forEach((sourceFile) => {
-    const namespace = path.basename(
-      sourceFile.fileName,
-      path.extname(sourceFile.fileName),
-    );
+    const namespace = path.basename(sourceFile.fileName, path.extname(sourceFile.fileName));
 
     const printed = printer.printFile(sourceFile);
 
-    sfCache.set(
-      sourceFile.fileName,
-      tsInstance.createSourceFile(
-        sourceFile.fileName,
-        printed,
-        sourceFile.languageVersion,
-      ),
-    );
+    sfCache.set(sourceFile.fileName, tsInstance.createSourceFile(sourceFile.fileName, printed, sourceFile.languageVersion));
     try {
       const genIter = genProtoBindings(repoPath, configSrcPath, namespace);
       genIter.next();
@@ -240,11 +163,7 @@ export default function transformProgram(
         Object.entries(generated.value).forEach(([fileName, contents]) => {
           sfCache.set(
             path.join(resolvedConfigSrcPath, fileName),
-            tsInstance.createSourceFile(
-              path.join(resolvedConfigSrcPath, fileName),
-              contents,
-              tsInstance.ScriptTarget.ES2017,
-            ),
+            tsInstance.createSourceFile(path.join(resolvedConfigSrcPath, fileName), contents, tsInstance.ScriptTarget.ES2017),
           );
         });
         // Trigger cleanup (TODO: probably doesn't need to be a generator)
@@ -267,11 +186,7 @@ export default function transformProgram(
     }
   });
   // We need to add these bindings to the program
-  updatedProgram = tsInstance.createProgram(
-    [...rootFileNames, ...sfCache.keys()],
-    compilerOptions,
-    compilerHost,
-  );
+  updatedProgram = tsInstance.createProgram([...rootFileNames, ...sfCache.keys()], compilerOptions, compilerHost);
 
   // Patch updated program to cleanly handle diagnostics and such
   patchProgram(updatedProgram);
@@ -310,10 +225,7 @@ export function checkConfigFunctionDeclaration(
   // Check name
   const functionName = node.name.getFullText().trim();
   if (!/^\s*get[A-Z][A-Za-z]*$/.test(functionName)) {
-    throw new LekkoParseError(
-      `Unparsable function name "${functionName}": config function names must start with "get"`,
-      node,
-    );
+    throw new LekkoParseError(`Unparsable function name "${functionName}": config function names must start with "get"`, node);
   }
   const configName = kebabCase(functionName.substring(3));
   // Check return type
@@ -325,11 +237,7 @@ export function checkConfigFunctionDeclaration(
   return { checkedNode: node, configName, returnType };
 }
 
-export function transformer(
-  program: ts.Program,
-  pluginConfig?: LekkoTransformerOptions,
-  extras?: TransformerExtras,
-) {
+export function transformer(program: ts.Program, pluginConfig?: LekkoTransformerOptions, extras?: TransformerExtras) {
   const tsInstance = extras?.ts ?? ts;
   const { target = "node" } = pluginConfig ?? {};
 
@@ -367,9 +275,7 @@ export function transformer(
         }
       }
       if (getter === undefined) {
-        throw new Error(
-          `Unsupported TypeScript type: ${returnType.flags} - ${program?.getTypeChecker().typeToString(returnType)}`,
-        );
+        throw new Error(`Unsupported TypeScript type: ${returnType.flags} - ${program?.getTypeChecker().typeToString(returnType)}`);
       }
       if (getter === "getProto") {
         const protoTypeParts = config.tree.default["@type"].split(".");
@@ -379,16 +285,8 @@ export function transformer(
           maybeProtoImport.push(
             factory.createImportDeclaration(
               undefined,
-              factory.createImportClause(
-                false,
-                undefined,
-                factory.createNamespaceImport(
-                  factory.createIdentifier("lekko_pb"),
-                ),
-              ),
-              factory.createStringLiteral(
-                `./gen/${namespace}/config/v1beta1/${namespace}_pb.ts`,
-              ),
+              factory.createImportClause(false, undefined, factory.createNamespaceImport(factory.createIdentifier("lekko_pb"))),
+              factory.createStringLiteral(`./gen/${namespace}/config/v1beta1/${namespace}_pb.ts`),
               undefined,
             ),
           );
@@ -413,16 +311,7 @@ export function transformer(
             ].concat(
               // For FE, require client as second parameter
               target !== "node"
-                ? [
-                    factory.createParameterDeclaration(
-                      undefined,
-                      undefined,
-                      factory.createIdentifier("client"),
-                      undefined,
-                      undefined,
-                      undefined,
-                    ),
-                  ]
+                ? [factory.createParameterDeclaration(undefined, undefined, factory.createIdentifier("client"), undefined, undefined, undefined)]
                 : [],
             ),
             node.type,
@@ -441,10 +330,7 @@ export function transformer(
                             undefined,
                             undefined,
                             factory.createNewExpression(
-                              factory.createPropertyAccessExpression(
-                                factory.createIdentifier("lekko_pb"),
-                                factory.createIdentifier(protoType),
-                              ),
+                              factory.createPropertyAccessExpression(factory.createIdentifier("lekko_pb"), factory.createIdentifier(protoType)),
                               undefined,
                               [],
                             ),
@@ -455,10 +341,7 @@ export function transformer(
                     ),
                     factory.createExpressionStatement(
                       factory.createCallExpression(
-                        factory.createPropertyAccessExpression(
-                          factory.createIdentifier(CONFIG_IDENTIFIER_NAME),
-                          factory.createIdentifier("fromBinary"),
-                        ),
+                        factory.createPropertyAccessExpression(factory.createIdentifier(CONFIG_IDENTIFIER_NAME), factory.createIdentifier("fromBinary")),
                         undefined,
                         [
                           factory.createPropertyAccessExpression(
@@ -467,10 +350,7 @@ export function transformer(
                                 target !== "node"
                                   ? factory.createIdentifier("client")
                                   : factory.createParenthesizedExpression(
-                                      factory.createPropertyAccessExpression(
-                                        factory.createIdentifier("globalThis"),
-                                        factory.createIdentifier("lekkoClient"),
-                                      ),
+                                      factory.createPropertyAccessExpression(factory.createIdentifier("globalThis"), factory.createIdentifier("lekkoClient")),
                                     ),
                                 factory.createIdentifier("getProto"),
                               ),
@@ -480,18 +360,11 @@ export function transformer(
                                 factory.createStringLiteral(configName),
                                 factory.createCallExpression(
                                   factory.createPropertyAccessExpression(
-                                    factory.createPropertyAccessExpression(
-                                      factory.createIdentifier("lekko"),
-                                      factory.createIdentifier("ClientContext"),
-                                    ),
+                                    factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("ClientContext")),
                                     factory.createIdentifier("fromJSON"),
                                   ),
                                   undefined,
-                                  [
-                                    factory.createIdentifier(
-                                      CTX_IDENTIFIER_NAME,
-                                    ),
-                                  ],
+                                  [factory.createIdentifier(CTX_IDENTIFIER_NAME)],
                                 ),
                               ],
                             ),
@@ -500,9 +373,7 @@ export function transformer(
                         ],
                       ),
                     ),
-                    factory.createReturnStatement(
-                      factory.createIdentifier(CONFIG_IDENTIFIER_NAME),
-                    ),
+                    factory.createReturnStatement(factory.createIdentifier(CONFIG_IDENTIFIER_NAME)),
                   ],
                   true,
                 ),
@@ -513,30 +384,21 @@ export function transformer(
           // For use by FE SDKs to be able to identify configs
           factory.createExpressionStatement(
             factory.createBinaryExpression(
-              factory.createPropertyAccessExpression(
-                node.name,
-                factory.createIdentifier("_namespaceName"),
-              ),
+              factory.createPropertyAccessExpression(node.name, factory.createIdentifier("_namespaceName")),
               factory.createToken(tsInstance.SyntaxKind.EqualsToken),
               factory.createStringLiteral(namespace),
             ),
           ),
           factory.createExpressionStatement(
             factory.createBinaryExpression(
-              factory.createPropertyAccessExpression(
-                node.name,
-                factory.createIdentifier("_configName"),
-              ),
+              factory.createPropertyAccessExpression(node.name, factory.createIdentifier("_configName")),
               factory.createToken(tsInstance.SyntaxKind.EqualsToken),
               factory.createStringLiteral(configName),
             ),
           ),
           factory.createExpressionStatement(
             factory.createBinaryExpression(
-              factory.createPropertyAccessExpression(
-                node.name,
-                factory.createIdentifier("_evaluationType"),
-              ),
+              factory.createPropertyAccessExpression(node.name, factory.createIdentifier("_evaluationType")),
               factory.createToken(tsInstance.SyntaxKind.EqualsToken),
               factory.createStringLiteral(config.type),
             ),
@@ -562,16 +424,7 @@ export function transformer(
           ].concat(
             // For FE, require client as second parameter
             target !== "node"
-              ? [
-                  factory.createParameterDeclaration(
-                    undefined,
-                    undefined,
-                    factory.createIdentifier("client"),
-                    undefined,
-                    undefined,
-                    undefined,
-                  ),
-                ]
+              ? [factory.createParameterDeclaration(undefined, undefined, factory.createIdentifier("client"), undefined, undefined, undefined)]
               : [],
           ),
           node.type,
@@ -586,10 +439,7 @@ export function transformer(
                       factory.createPropertyAccessExpression(
                         target !== "node"
                           ? factory.createIdentifier("client")
-                          : factory.createPropertyAccessExpression(
-                              factory.createIdentifier("globalThis"),
-                              factory.createIdentifier("lekkoClient"),
-                            ),
+                          : factory.createPropertyAccessExpression(factory.createIdentifier("globalThis"), factory.createIdentifier("lekkoClient")),
                         factory.createIdentifier(getter),
                       ),
                       undefined,
@@ -598,10 +448,7 @@ export function transformer(
                         factory.createStringLiteral(configName),
                         factory.createCallExpression(
                           factory.createPropertyAccessExpression(
-                            factory.createPropertyAccessExpression(
-                              factory.createIdentifier("lekko"),
-                              factory.createIdentifier("ClientContext"),
-                            ),
+                            factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("ClientContext")),
                             factory.createIdentifier("fromJSON"),
                           ),
                           undefined,
@@ -619,30 +466,21 @@ export function transformer(
         ),
         factory.createExpressionStatement(
           factory.createBinaryExpression(
-            factory.createPropertyAccessExpression(
-              node.name,
-              factory.createIdentifier("_namespaceName"),
-            ),
+            factory.createPropertyAccessExpression(node.name, factory.createIdentifier("_namespaceName")),
             factory.createToken(tsInstance.SyntaxKind.EqualsToken),
             factory.createStringLiteral(namespace),
           ),
         ),
         factory.createExpressionStatement(
           factory.createBinaryExpression(
-            factory.createPropertyAccessExpression(
-              node.name,
-              factory.createIdentifier("_configName"),
-            ),
+            factory.createPropertyAccessExpression(node.name, factory.createIdentifier("_configName")),
             factory.createToken(tsInstance.SyntaxKind.EqualsToken),
             factory.createStringLiteral(configName),
           ),
         ),
         factory.createExpressionStatement(
           factory.createBinaryExpression(
-            factory.createPropertyAccessExpression(
-              node.name,
-              factory.createIdentifier("_evaluationType"),
-            ),
+            factory.createPropertyAccessExpression(node.name, factory.createIdentifier("_evaluationType")),
             factory.createToken(tsInstance.SyntaxKind.EqualsToken),
             factory.createStringLiteral(config.type),
           ),
@@ -653,18 +491,12 @@ export function transformer(
     // Prepend the given body with a variable assignment to make the function's parameters available
     // in the body. No-op if there was no parameter to start.
     // i.e. adds `_ctx ??= {}; const { env } = _ctx ?? {}` to start
-    function prependParamVars(
-      fd: ts.FunctionDeclaration,
-      newParamName: string,
-      body: ts.Block,
-    ): ts.Block {
+    function prependParamVars(fd: ts.FunctionDeclaration, newParamName: string, body: ts.Block): ts.Block {
       const statements: ts.Statement[] = [
         factory.createExpressionStatement(
           factory.createBinaryExpression(
             factory.createIdentifier(newParamName),
-            factory.createToken(
-              tsInstance.SyntaxKind.QuestionQuestionEqualsToken,
-            ),
+            factory.createToken(tsInstance.SyntaxKind.QuestionQuestionEqualsToken),
             factory.createObjectLiteralExpression(),
           ),
         ),
@@ -696,15 +528,7 @@ export function transformer(
       return factory.createBlock([
         factory.createTryStatement(
           tryBlock,
-          factory.createCatchClause(
-            factory.createVariableDeclaration(
-              factory.createIdentifier("e"),
-              undefined,
-              undefined,
-              undefined,
-            ),
-            catchBlock,
-          ),
+          factory.createCatchClause(factory.createVariableDeclaration(factory.createIdentifier("e"), undefined, undefined, undefined), catchBlock),
           undefined,
         ),
       ]);
@@ -714,14 +538,8 @@ export function transformer(
       return factory.updateSourceFile(sourceFile, [
         factory.createImportDeclaration(
           undefined,
-          factory.createImportClause(
-            false,
-            undefined,
-            factory.createNamespaceImport(factory.createIdentifier("lekko")),
-          ),
-          factory.createStringLiteral(
-            target !== "node" ? "@lekko/js-sdk" : "@lekko/node-server-sdk",
-          ),
+          factory.createImportClause(false, undefined, factory.createNamespaceImport(factory.createIdentifier("lekko"))),
+          factory.createStringLiteral(target !== "node" ? "@lekko/js-sdk" : "@lekko/node-server-sdk"),
           undefined,
         ),
         ...sourceFile.statements,
@@ -729,43 +547,23 @@ export function transformer(
     }
 
     return (sourceFile: ts.SourceFile): ts.SourceFile => {
-      const namespace = path.basename(
-        sourceFile.path,
-        path.extname(sourceFile.path),
-      );
+      const namespace = path.basename(sourceFile.path, path.extname(sourceFile.path));
 
       function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
         if (tsInstance.isSourceFile(node)) {
           const match = node.fileName.match(LEKKO_FILENAME_REGEX);
           if (match) {
             let transformed = addLekkoImports(node);
-            transformed = tsInstance.visitEachChild(
-              transformed,
-              visit,
-              context,
-            );
+            transformed = tsInstance.visitEachChild(transformed, visit, context);
             return transformed;
           } else {
             return node;
           }
         } else if (tsInstance.isFunctionDeclaration(node)) {
-          const { checkedNode, configName, returnType } =
-            checkConfigFunctionDeclaration(tsInstance, checker, node);
-          const configJSON = functionToConfigJSON(
-            checkedNode,
-            checker,
-            namespace,
-            configName,
-            returnType,
-          );
+          const { checkedNode, configName, returnType } = checkConfigFunctionDeclaration(tsInstance, checker, node);
+          const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
           // Transform local (static) to SDK client calls
-          return transformLocalToRemote(
-            checkedNode,
-            namespace,
-            configName,
-            returnType,
-            configJSON,
-          );
+          return transformLocalToRemote(checkedNode, namespace, configName, returnType, configJSON);
         }
         return node;
       }

@@ -355,6 +355,19 @@ export function functionToConfigJSON(
   return config;
 }
 
+function functionToDescriptor(node: CheckedFunctionDeclaration, checker: ts.TypeChecker): DescriptorProto {
+  const param = node.parameters[0];
+  const propertyType = checker.getTypeAtLocation(param.type as ts.TypeReferenceNode);
+  const symbol = propertyType.getSymbol();
+  assert(symbol);
+  return symbolToDescriptorProto(
+    symbol,
+    checker,
+    `${new ProtoName(node.name.text).messageName()}.Signature`,
+    `${path}.${new ProtoName(node.name.text).messageName()}`,
+  );
+}
+
 /**
  * Generates starlark files in local config repo based on function declarations.
  * Depends on the Lekko CLI.
@@ -673,6 +686,27 @@ class ProtoName {
   }
 }
 
+export function paramArrayToDescriptorProto(
+  params: ts.NodeArray<ts.ParameterDeclaration>,
+  checker: TypeChecker,
+  messageName: string,
+  path: string,
+): DescriptorProto {
+  const ret = new DescriptorProto({ name: messageName });
+  for (let idx = 0; idx < params.length; ++idx) {
+    const param = params[idx];
+    //const propertyName = (param.name as ts.Identifier).text;
+    const propertyType = checker.getTypeAtLocation(param.type as ts.TypeReferenceNode);
+    //const fieldName = new ProtoName(propertyName.toString());
+    const fieldName = new ProtoName(""); // always going to be an object
+    tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `${path}.${messageName}`, idx + 1);
+    const symbol = propertyType.getSymbol();
+    assert(symbol);
+    return symbolToDescriptorProto(symbol, checker, fieldName.messageName(), `${path}.${messageName}`);
+  }
+  return ret;
+}
+
 export function interfaceToDescriptorProto(namespace: string, node: ts.InterfaceDeclaration, checker: TypeChecker): DescriptorProto {
   const ret = new DescriptorProto();
   const interfaceName = new ProtoName(node.name.getText());
@@ -685,6 +719,7 @@ export function interfaceToDescriptorProto(namespace: string, node: ts.Interface
       assert(member.type);
       const propertyType = checker.getTypeAtLocation(member.type);
       tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `.lekko.${namespace}.${interfaceName.messageName()}`, idx + 1);
+
       // the inner thing always returns a field, and may return a nested type
     } else {
       throw new LekkoParseError(`Unsupported member type: ${ts.SyntaxKind[member.kind]} - ${member.getFullText()}`, member);
@@ -705,7 +740,7 @@ export function symbolToDescriptorProto(node: ts.Symbol, checker: TypeChecker, m
     const propertyType = checker.getTypeOfSymbol(symbol);
     const fieldName = new ProtoName(propertyName.toString());
 
-    tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `${path}.${messageName}`, idx + 1);
+    tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, path, idx + 1);
   }
   return ret;
 }
@@ -804,7 +839,7 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
   const tsInstance = ts;
   const checker = program.getTypeChecker();
   const fds = new FileDescriptorProto({
-    package: "lekko.${namespace}",
+    package: `lekko.${namespace}`,
     // TODO
   });
 
@@ -818,6 +853,7 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
       const { checkedNode, configName, returnType } = checkConfigFunctionDeclaration(tsInstance, checker, node);
       // Apply changes to config repo
       const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
+      fds.messageType.push(functionToDescriptor(checkedNode, checker));
       configs.push({ static_feature: configJSON });
     } else if (tsInstance.isInterfaceDeclaration(node)) {
       fds.messageType.push(interfaceToDescriptorProto(namespace, node, checker));
