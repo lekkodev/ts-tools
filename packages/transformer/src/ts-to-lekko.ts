@@ -673,7 +673,7 @@ class ProtoName {
   }
 }
 
-export function interfaceToDescriptorProto(node: ts.InterfaceDeclaration, checker: TypeChecker): DescriptorProto {
+export function interfaceToDescriptorProto(namespace: string, node: ts.InterfaceDeclaration, checker: TypeChecker): DescriptorProto {
   const ret = new DescriptorProto();
   const interfaceName = new ProtoName(node.name.getText());
   ret.name = interfaceName.messageName();
@@ -684,7 +684,7 @@ export function interfaceToDescriptorProto(node: ts.InterfaceDeclaration, checke
       const fieldName = new ProtoName(member.name.getText());
       assert(member.type);
       const propertyType = checker.getTypeAtLocation(member.type);
-      tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `.lekko.NAMESPACE.${interfaceName.messageName()}`, idx + 1);
+      tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `.lekko.${namespace}.${interfaceName.messageName()}`, idx + 1);
       // the inner thing always returns a field, and may return a nested type
     } else {
       throw new LekkoParseError(`Unsupported member type: ${ts.SyntaxKind[member.kind]} - ${member.getFullText()}`, member);
@@ -804,7 +804,7 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
   const tsInstance = ts;
   const checker = program.getTypeChecker();
   const fds = new FileDescriptorProto({
-    package: "lekko",
+    package: "lekko.${namespace}",
     // TODO
   });
 
@@ -820,7 +820,7 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
       const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
       configs.push({ static_feature: configJSON });
     } else if (tsInstance.isInterfaceDeclaration(node)) {
-      fds.messageType.push(interfaceToDescriptorProto(node, checker));
+      fds.messageType.push(interfaceToDescriptorProto(namespace, node, checker));
     }
     return undefined;
   }
