@@ -666,10 +666,10 @@ class ProtoName {
   }
 
   public messageName() {
-    return upperFirst(camelCase(this.raw))
+    return upperFirst(camelCase(this.raw));
   }
   public fieldName() {
-    return snakeCase(this.raw)
+    return snakeCase(this.raw);
   }
 }
 
@@ -681,11 +681,10 @@ export function interfaceToDescriptorProto(node: ts.InterfaceDeclaration, checke
   for (let idx = 0; idx < node.members.length; ++idx) {
     const member = node.members[idx];
     if (ts.isPropertySignature(member)) {
-      const fieldName = new ProtoName(member.name.getText())
+      const fieldName = new ProtoName(member.name.getText());
       assert(member.type);
       const propertyType = checker.getTypeAtLocation(member.type);
-      const field = tsTypeToProtoFieldDescription(checker, propertyType, fieldName, interfaceName, idx + 1);
-      ret.field.push(field);
+      tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `.lekko.NAMESPACE.${interfaceName.messageName()}`, idx + 1);
       // the inner thing always returns a field, and may return a nested type
     } else {
       throw new LekkoParseError(`Unsupported member type: ${ts.SyntaxKind[member.kind]} - ${member.getFullText()}`, member);
@@ -694,27 +693,48 @@ export function interfaceToDescriptorProto(node: ts.InterfaceDeclaration, checke
   return ret;
 }
 
+export function symbolToDescriptorProto(node: ts.Symbol, checker: TypeChecker, messageName: string, path: string): DescriptorProto {
+  if (node.members == undefined) {
+    throw new Error(`Error: Programmer is incompetent.  Replace with ChatGPT.`);
+  }
+  const ret = new DescriptorProto({ name: messageName });
+
+  const members = Array.from(node.members);
+  for (let idx = 0; idx < members.length; ++idx) {
+    const [propertyName, symbol] = members[idx];
+    const propertyType = checker.getTypeOfSymbol(symbol);
+    const fieldName = new ProtoName(propertyName.toString());
+
+    tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `${path}.${messageName}`, idx + 1);
+  }
+  return ret;
+}
+
 // todo - I think we want PATH not message name
 // namespace.MessageName as path
-function tsTypeToProtoFieldDescription(checker: TypeChecker, type: ts.Type, fieldName: ProtoName, messageName: ProtoName, fieldNumber: number): FieldDescriptorProto { // TODO handle Sub-Messages
-  const ret = {
+function tsTypeToProtoFieldDescription(d: DescriptorProto, checker: TypeChecker, type: ts.Type, fieldName: ProtoName, path: string, fieldNumber: number) {
+  // TODO handle Sub-Messages
+  const fd = {
     name: fieldName.fieldName(),
     number: fieldNumber,
     type: "",
     typeName: "",
-  }
+  };
   if (type.flags & ts.TypeFlags.String) {
-    ret.type = "TYPE_STRING"
-    return FieldDescriptorProto.fromJson(ret);
+    fd.type = "TYPE_STRING";
+    d.field.push(FieldDescriptorProto.fromJson(fd));
+    return;
   }
   if (type.flags & ts.TypeFlags.Number) {
-    ret.type = "TYPE_DOUBLE";
-    return FieldDescriptorProto.fromJson(ret);
+    fd.type = "TYPE_DOUBLE";
+    d.field.push(FieldDescriptorProto.fromJson(fd));
+    return;
   }
   // TODO: Int fields
   if (type.flags & ts.TypeFlags.Boolean) {
-    ret.type = "TYPE_BOOL";
-    return FieldDescriptorProto.fromJson(ret);
+    fd.type = "TYPE_BOOL";
+    d.field.push(FieldDescriptorProto.fromJson(fd));
+    return;
   }
   if (type.flags & ts.TypeFlags.Union) {
     const unionType: ts.UnionType = type as ts.UnionType;
@@ -726,8 +746,9 @@ function tsTypeToProtoFieldDescription(checker: TypeChecker, type: ts.Type, fiel
         unionType.types.some((t) => isIntrinsicType(t) && t.intrinsicName === "true") &&
         unionType.types.some((t) => t.flags & ts.TypeFlags.Undefined)
       ) {
-        ret.type = "TYPE_BOOL";
-        return FieldDescriptorProto.fromJson(ret);
+        fd.type = "TYPE_BOOL";
+        d.field.push(FieldDescriptorProto.fromJson(fd));
+        return;
       } else {
         throw new Error("Union types are currently not fully supported.");
       }
@@ -741,7 +762,8 @@ function tsTypeToProtoFieldDescription(checker: TypeChecker, type: ts.Type, fiel
       } else {
         throw new Error("Union types are currently not fully supported.");
       }
-      return tsTypeToProtoFieldDescription(checker, definedType, fieldName, messageName, fieldNumber);
+      tsTypeToProtoFieldDescription(d, checker, definedType, fieldName, path, fieldNumber);
+      return;
     }
     // If all the types are ObjectLiteral - do we want to use that type, or make an enum?  Do we want to do oneOf for the others?
     throw new Error("Union types are currently not fully supported.");
@@ -755,37 +777,23 @@ function tsTypeToProtoFieldDescription(checker: TypeChecker, type: ts.Type, fiel
       const typeArgs = (type as ts.TypeReference).typeArguments;
       assert(typeArgs);
       const innerType = typeArgs[0];
-      const ir =  tsTypeToProtoFieldDescription(checker, innerType, fieldName, messageName, fieldNumber)
-      ir.label = 3; // repeated
-      return ir;
+      tsTypeToProtoFieldDescription(d, checker, innerType, fieldName, path, fieldNumber);
+      d.field[d.field.length - 1].label = 3; // repeated
+      return;
       // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
     } else if (symbol.escapedName === "Date") {
-      ret.type = "TYPE_INT32"; // TODO dates are stupid
-      return FieldDescriptorProto.fromJson(ret);
+      fd.type = "TYPE_INT32"; // TODO dates are stupid
+      d.field.push(FieldDescriptorProto.fromJson(fd));
+      return;
     } else {
       const symbol = type.getSymbol();
       assert(symbol);
-      /*
-      builder.messages[childName] ||= [];
-      builder.messages[childName].push(
-        ...symbolToFields(symbol, checker, childName, builder),
-      );
-        if (node.members == undefined) {
-    throw new Error(`Error: Programmer is incompetent.  Replace with ChatGPT.`);
-  }
-  return Array.from(node.members).map(([propertyName, symbol], idx) => {
-    const propertyType = typeChecker.getTypeOfSymbol(symbol);
-    const fieldName = snakeCase(propertyName.toString());
-    const protoType = getProtoTypeFromTypeScriptType(typeChecker, propertyType, fieldName, name, builder);
-    return `${protoType} ${fieldName} = ${idx + 1};`;
-  });
-      */
+      fd.type = "TYPE_MESSAGE";
+      fd.typeName = path + "." + fieldName.messageName(); // TODO need to differentiate between embedded and referenced stuff
+      d.field.push(FieldDescriptorProto.fromJson(fd));
+      d.nestedType.push(symbolToDescriptorProto(symbol, checker, fieldName.messageName(), path));
+      return;
     }
-    //return childName;
-    //console.log(childName);
-    ret.type = "TYPE_MESSAGE";
-    ret.typeName = "." + messageName.messageName() + "." + fieldName.messageName(); // TODO need to differentiate between embedded and referenced stuff
-    return FieldDescriptorProto.fromJson(ret);
   }
   throw new Error(`Unsupported TypeScript type: ${type.flags} - ${checker.typeToString(type)}`);
 }
@@ -795,7 +803,10 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
   const configs: { static_feature: LekkoConfigJSON }[] = [];
   const tsInstance = ts;
   const checker = program.getTypeChecker();
-  const fds = new FileDescriptorProto();
+  const fds = new FileDescriptorProto({
+    package: "lekko",
+    // TODO
+  });
 
   function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
     if (tsInstance.isSourceFile(node)) {
