@@ -837,7 +837,7 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
   const checker = program.getTypeChecker();
   const fds = new FileDescriptorProto({
     package: `lekko.${namespace}`,
-    syntax: 'proto3',
+    syntax: "proto3",
     // TODO
   });
 

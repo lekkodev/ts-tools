@@ -45,6 +45,9 @@
     "typescript",
     "ts"
   ],
+  "prettier": {
+    "printWidth": 160
+  },
   "author": "",
   "license": "MIT",
   "bugs": {
