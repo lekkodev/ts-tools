@@ -363,7 +363,7 @@ function functionToDescriptor(node: CheckedFunctionDeclaration, checker: ts.Type
   return symbolToDescriptorProto(
     symbol,
     checker,
-    `${new ProtoName(node.name.text).messageName()}.Signature`,
+    `${new ProtoName(node.name.text.slice(3)).messageName()}Args`,
     `${path}.${new ProtoName(node.name.text).messageName()}`,
   );
 }
@@ -718,7 +718,7 @@ export function interfaceToDescriptorProto(namespace: string, node: ts.Interface
       const fieldName = new ProtoName(member.name.getText());
       assert(member.type);
       const propertyType = checker.getTypeAtLocation(member.type);
-      tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `.lekko.${namespace}.${interfaceName.messageName()}`, idx + 1);
+      tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `${namespace}.config.v1beta1.${interfaceName.messageName()}`, idx + 1);
 
       // the inner thing always returns a field, and may return a nested type
     } else {
@@ -835,8 +835,8 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
   const configs: { static_feature: LekkoConfigJSON }[] = [];
   const tsInstance = ts;
   const checker = program.getTypeChecker();
-  const fds = new FileDescriptorProto({
-    package: `lekko.${namespace}`,
+  const fd = new FileDescriptorProto({
+    package: `${namespace}.config.v1beta1`,
     syntax: "proto3",
     // TODO
   });
@@ -851,15 +851,15 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
       const { checkedNode, configName, returnType } = checkConfigFunctionDeclaration(tsInstance, checker, node);
       // Apply changes to config repo
       const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
-      fds.messageType.push(functionToDescriptor(checkedNode, checker));
+      fd.messageType.push(functionToDescriptor(checkedNode, checker));
       configs.push({ static_feature: configJSON });
     } else if (tsInstance.isInterfaceDeclaration(node)) {
-      fds.messageType.push(interfaceToDescriptorProto(namespace, node, checker));
+      fd.messageType.push(interfaceToDescriptorProto(namespace, node, checker));
     }
     return undefined;
   }
 
   tsInstance.visitNode(sourceFile, visit);
 
-  return { name: namespace, configs, file_descriptor_set: fds };
+  return { name: namespace, configs, file_descriptor_set: fd };
 }
