@@ -823,7 +823,7 @@ function tsTypeToProtoFieldDescription(d: DescriptorProto, checker: TypeChecker,
       fd.type = "TYPE_MESSAGE";
       fd.typeName = path + "." + fieldName.messageName(); // TODO need to differentiate between embedded and referenced stuff
       d.field.push(FieldDescriptorProto.fromJson(fd));
-      d.nestedType.push(symbolToDescriptorProto(symbol, checker, fieldName.messageName(), path));
+      d.nestedType.push(symbolToDescriptorProto(symbol, checker, fieldName.messageName(), path)); // TODO - do we need to add to the path here?
       return;
     }
   }
@@ -838,6 +838,7 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
   const fd = new FileDescriptorProto({
     package: `${namespace}.config.v1beta1`,
     syntax: "proto3",
+    name: "lekko.proto"
     // TODO
   });
 
@@ -861,5 +862,5 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
 
   tsInstance.visitNode(sourceFile, visit);
 
-  return { name: namespace, configs, file_descriptor_set: fd };
+  return [{ name: namespace, configs}, fd ];
 }

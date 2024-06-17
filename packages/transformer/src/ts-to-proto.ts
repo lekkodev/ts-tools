@@ -35,5 +35,6 @@ if (require.main === module) {
   const json = lekkoSourceFiles.map((file) =>
     sourceFileToJson(file, tsProgram),
   );
-  console.log(JSON.stringify({ namespaces: json }));
+  console.log(JSON.stringify({ namespaces: [json[0][0]]}));
+  console.log(JSON.stringify(json[0][1] ));
 }

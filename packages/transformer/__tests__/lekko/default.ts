@@ -16,10 +16,6 @@ export interface RemoteTemplates {
     }[]
 }
 
-export interface MultiBannerConfig {
-  configs: BannerConfig[]
-}
-
 export function getBannerConfig({
     env,
     pathname
