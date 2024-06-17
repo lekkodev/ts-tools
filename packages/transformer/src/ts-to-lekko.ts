@@ -368,6 +368,17 @@ function functionToDescriptor(node: CheckedFunctionDeclaration, checker: ts.Type
   );
 }
 
+export function functionToProto(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, builder: ProtoFileBuilder) {
+  const param = node.parameters[0];
+  const propertyType = checker.getTypeAtLocation(param.type as ts.TypeReferenceNode);
+  const symbol = propertyType.getSymbol();
+  assert(symbol);
+  const name = `${new ProtoName(node.name.text.slice(3)).messageName()}Args`;
+  builder.messages[name] ||= [];
+  builder.messages[name].push(...symbolToFields(symbol, checker, name, builder));
+  console.log(builder)
+}
+
 /**
  * Generates starlark files in local config repo based on function declarations.
  * Depends on the Lekko CLI.

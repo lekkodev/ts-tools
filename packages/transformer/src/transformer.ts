@@ -5,7 +5,7 @@ import { type ProgramTransformerExtras, type TransformerExtras } from "ts-patch"
 import ts from "typescript";
 import { type ProtoFileBuilder, type LekkoConfigJSON, type LekkoTransformerOptions } from "./types";
 import { type CheckedFunctionDeclaration, LEKKO_FILENAME_REGEX, assertIsCheckedFunctionDeclaration, isLekkoConfigFile } from "./helpers";
-import { interfaceToProto, genProtoBindings, genProtoFile, functionToConfigJSON, genStarlark, listConfigs, removeConfig } from "./ts-to-lekko";
+import { interfaceToProto, genProtoBindings, genProtoFile, functionToConfigJSON, genStarlark, listConfigs, removeConfig, functionToProto } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
 import { emitEnvVars } from "./emit-env-vars";
 import kebabCase from "lodash.kebabcase";
@@ -88,6 +88,7 @@ export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOp
         // Apply changes to config repo
         const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
         configs.push(configJSON);
+        functionToProto(checkedNode, checker, protoFileBuilder);
       } else if (tsInstance.isInterfaceDeclaration(node)) {
         interfaceToProto(node, checker, protoFileBuilder);
       }
@@ -573,3 +574,4 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
     };
   };
 }
+
