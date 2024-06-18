@@ -1,4 +1,14 @@
 module.exports = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Lekko Native Language Limitations',
+      category: 'Best Practices',
+      recommended: true,
+    },
+    fixable: 'code',
+    schema: [],
+  },
   create(context) {
     return {
       "FunctionDeclaration[id] > Identifier[name=/^(?!get[A-Za-z0-9]+$)/]":
@@ -6,7 +16,17 @@ module.exports = {
           context.report(node, "Function names must be like 'getConfigName'.");
         },
       "IfStatement[consequent.type!=BlockStatement]": function (node) {
-        context.report(node, "Must include {} after if.");
+        context.report({
+          node,
+          message: "Must include {} after if.",
+          fix(fixer) {
+            const sourceCode = context.getSourceCode();
+            const consequent = node.consequent;
+            const consequentText = sourceCode.getText(consequent);
+            const fixedText = `{ ${consequentText} }`;
+            return fixer.replaceText(consequent, fixedText);
+          },
+        });
       },
       "IfStatement > BlockStatement > :not(ReturnStatement)": function (node) {
         context.report(
@@ -21,6 +41,35 @@ module.exports = {
             "Literals must be on the right side of binary expressions.",
           );
         },
+      'BinaryExpression[right.type="Identifier"]':
+        function (node) {
+          const oppositeOperators = {
+            '===': '===',
+            '!==': '!==',
+            '==': '==',
+            '!=': '!=',
+            '<': '>=',
+            '>': '<=',
+            '<=': '>',
+            '>=': '<'
+          };
+          context.report({
+            node,
+            message: "Identifiers can't be on the right side.",
+            fix(fixer) {
+              if (node.left.type !== 'Identifier') {
+                const sourceCode = context.getSourceCode();
+                const leftText = sourceCode.getText(node.left);
+                const rightText = sourceCode.getText(node.right);
+                const operator = node.operator;
+                const oppositeOperator = oppositeOperators[operator] || operator;
+                const fixedText = `${rightText} ${oppositeOperator} ${leftText}`;
+
+                return fixer.replaceText(node, fixedText);
+              }
+            },
+          });
+        },
       "FunctionDeclaration > BlockStatement > :not(:matches(IfStatement,  ReturnStatement))":
         function (node) {
           context.report(
@@ -29,10 +78,26 @@ module.exports = {
           );
         },
       ":not(ExportNamedDeclaration) > FunctionDeclaration": function (node) {
-        context.report(node, "Functions must be exported.");
+        context.report({
+          node,
+          message: "Functions must be exported.",
+          fix(fixer) {
+            const sourceCode = context.getSourceCode();
+            const functionToken = sourceCode.getFirstToken(node);
+            return fixer.insertTextBefore(functionToken, 'export ');
+          },
+        });
       },
       "FunctionDeclaration[async=true]": function (node) {
-        context.report(node, "Functions must not be async.");
+        context.report({
+          node,
+          message: "Functions must not be async.",
+          fix(fixer) {
+            const sourceCode = context.getSourceCode();
+            const asyncToken = sourceCode.getFirstToken(node, { filter: token => token.value === 'async' });
+            return fixer.remove(asyncToken);
+          },
+        });
       },
       'Program > :not(ExportNamedDeclaration[declaration.type="FunctionDeclaration"], ExportNamedDeclaration[declaration.type="TSInterfaceDeclaration"])':
         function (node) {
@@ -46,4 +111,4 @@ module.exports = {
       },
     };
   },
-};
+}
