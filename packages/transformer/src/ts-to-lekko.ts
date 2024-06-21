@@ -523,10 +523,11 @@ export function listConfigs(repoPath: string, namespace: string) {
   if (listCmd.error !== undefined || listCmd.status !== 0) {
     throw new Error(`Failed to list current configs: ${listCmd.stdout}${listCmd.stderr}`);
   }
-  return listCmd.stdout
-    .trim()
-    .split("\n")
-    .map((nsConfigPair) => nsConfigPair.split("/")[1]);
+  const output = listCmd.stdout.trim();
+  if (output === "") {
+    return [];
+  }
+  return output.split("\n").map((nsConfigPair) => nsConfigPair.split("/")[1]);
 }
 
 export function removeConfig(repoPath: string, namespace: string, configKey: string) {

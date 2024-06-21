@@ -20,7 +20,8 @@ ruleTester.run("limitations", limitations, {
   numberField?: number;
   booleanField?: boolean;
 }
-    `},
+    `,
+    },
     {
       code: `
 /** tunable boolean */
@@ -28,7 +29,8 @@ export function getBooleanTunable(): boolean {
   return true;
 }
 
-    `},
+    `,
+    },
     {
       code: `
 /** tunable number */
@@ -36,7 +38,8 @@ export function getNumberTunable(): number {
   return 42;
 }
 
-    `},
+    `,
+    },
     {
       code: `
 /** tunable string */
@@ -44,7 +47,8 @@ export function getStringTunable(): string {
   return "foo";
 }
 
-    `},
+    `,
+    },
     {
       code: `
 /** test boolean operators */
@@ -61,7 +65,8 @@ export function getTestBooleanOperators({
   return "default";
 }
 
-    `},
+    `,
+    },
     {
       code: `
 export function getTestLogicalOperators({
@@ -87,7 +92,8 @@ export function getTestLogicalOperators({
   return "default";
 }
 
-    `},
+    `,
+    },
     {
       code: `
 /** test number operators */
@@ -113,7 +119,8 @@ export function getTestNumberOperators({
   }
   return "default";
 }
-    `},
+    `,
+    },
     {
       code: `
 
@@ -134,7 +141,8 @@ export function getTestStringOperators({ env }: { env: string }): string {
   }
   return "default";
 }
-    `},
+    `,
+    },
     {
       code: `
 
@@ -155,13 +163,13 @@ export function getTunableInterface({ env }: { env: string }): TunableStruct {
 }
       `,
     },
-
   ],
   invalid: [
     {
       // Async
       code: "export async function getFlag({ env }: { env: string }): Promise<bool> { return false; }",
-      output: "export  function getFlag({ env }: { env: string }): Promise<bool> { return false; }",
+      output:
+        "export  function getFlag({ env }: { env: string }): Promise<bool> { return false; }",
       errors: 1,
     },
     {
@@ -198,7 +206,7 @@ export function getTunableInterface({ env }: { env: string }): TunableStruct {
   return "left"
 }
     `,
-      errors: 1
+      errors: 1,
     },
     {
       code: `export function getTestStringOperators({ env }: { env: string }): string {
@@ -215,7 +223,15 @@ export function getTunableInterface({ env }: { env: string }): TunableStruct {
   return "left"
 }
     `,
-      errors: 2
-    }
+      errors: 2,
+    },
+    {
+      code: `export function getMoreThanOneParams(a, b): boolean { return true; }`,
+      errors: 1,
+    },
+    {
+      code: `export function getNonPrimitiveContextVariable({ env }: { env: string | null | undefined }): boolean { return true; }`,
+      errors: 1,
+    },
   ],
 });
