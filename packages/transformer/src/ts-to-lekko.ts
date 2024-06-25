@@ -355,7 +355,10 @@ export function functionToConfigJSON(
   return config;
 }
 
-function functionToDescriptor(node: CheckedFunctionDeclaration, checker: ts.TypeChecker): DescriptorProto {
+function functionToArgsDescriptor(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, path: string): DescriptorProto | undefined {
+  if (node.parameters.length === 0) {
+    return undefined;
+  }
   const param = node.parameters[0];
   const propertyType = checker.getTypeAtLocation(param.type as ts.TypeReferenceNode);
   const symbol = propertyType.getSymbol();
@@ -368,7 +371,11 @@ function functionToDescriptor(node: CheckedFunctionDeclaration, checker: ts.Type
   );
 }
 
+/** Mutates the passed builder */
 export function functionToProto(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, builder: ProtoFileBuilder) {
+  if (node.parameters.length === 0) {
+    return;
+  }
   const param = node.parameters[0];
   const propertyType = checker.getTypeAtLocation(param.type as ts.TypeReferenceNode);
   const symbol = propertyType.getSymbol();
@@ -376,7 +383,6 @@ export function functionToProto(node: CheckedFunctionDeclaration, checker: ts.Ty
   const name = `${new ProtoName(node.name.text.slice(3)).messageName()}Args`;
   builder.messages[name] ||= [];
   builder.messages[name].push(...symbolToFields(symbol, checker, name, builder));
-  console.log(builder)
 }
 
 /**
@@ -418,7 +424,7 @@ export function interfaceToProto(node: ts.InterfaceDeclaration, checker: TypeChe
 
 function symbolToFields(node: ts.Symbol, typeChecker: ts.TypeChecker, name: string, builder: ProtoFileBuilder) {
   if (node.members == undefined) {
-    throw new Error(`Error: Programmer is incompetent.  Replace with ChatGPT.`);
+    throw new Error(`Invalid symbol ${node.name}`);
   }
   return Array.from(node.members).map(([propertyName, symbol], idx) => {
     const propertyType = typeChecker.getTypeOfSymbol(symbol);
@@ -740,9 +746,10 @@ export function interfaceToDescriptorProto(namespace: string, node: ts.Interface
   return ret;
 }
 
+// TODO: Test that this actually works for nested proto fields
 export function symbolToDescriptorProto(node: ts.Symbol, checker: TypeChecker, messageName: string, path: string): DescriptorProto {
   if (node.members == undefined) {
-    throw new Error(`Error: Programmer is incompetent.  Replace with ChatGPT.`);
+    throw new Error(`Invalid symbol ${node.name}`);
   }
   const ret = new DescriptorProto({ name: messageName });
 
@@ -850,11 +857,12 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
   const fd = new FileDescriptorProto({
     package: `${namespace}.config.v1beta1`,
     syntax: "proto3",
-    name: "lekko.proto"
+    name: "lekko.proto",
     // TODO
   });
 
   function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
+    assert(fd.package);
     if (tsInstance.isSourceFile(node)) {
       const match = node.fileName.match(LEKKO_FILENAME_REGEX);
       if (match) {
@@ -864,7 +872,10 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
       const { checkedNode, configName, returnType } = checkConfigFunctionDeclaration(tsInstance, checker, node);
       // Apply changes to config repo
       const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
-      fd.messageType.push(functionToDescriptor(checkedNode, checker));
+      const args = functionToArgsDescriptor(checkedNode, checker, fd.package);
+      if (args !== undefined) {
+        fd.messageType.push(args);
+      }
       configs.push({ static_feature: configJSON });
     } else if (tsInstance.isInterfaceDeclaration(node)) {
       fd.messageType.push(interfaceToDescriptorProto(namespace, node, checker));
@@ -874,5 +885,5 @@ export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program)
 
   tsInstance.visitNode(sourceFile, visit);
 
-  return [{ name: namespace, configs}, fd ];
+  return [{ name: namespace, configs }, fd];
 }
