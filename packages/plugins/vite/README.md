@@ -25,3 +25,23 @@ export default defineConfig({
   ...
 })
 ```
+
+## Options
+
+### configSrcPath
+
+Relative path to the directory containing lekko TypeScript files.
+Defaults to `./src/lekko`.
+
+```js showLineNumbers
+lekko({ configSrcPath: "./some/other/path" });
+```
+
+### verbose
+
+Enables verbose logging for debugging purposes.
+Defaults to false.
+
+```js showLineNumbers
+lekko({ verbose: true });
+```
