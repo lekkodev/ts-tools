@@ -3,6 +3,10 @@ import { type Configuration } from "webpack";
 import lekko from "@lekko/webpack-loader";
 
 export interface LekkoNextConfigOptions {
+  /**
+   * Path to custom tsconfig file
+   */
+  tsconfigPath?: string;
   verbose?: boolean;
   mode?: "development" | "production" | "all";
 }
@@ -18,16 +22,17 @@ export function withLekkoNextConfig(
   nextConfig: NextConfig,
   options?: LekkoNextConfigOptions,
 ): NextConfig {
-  const { verbose = false, mode = "production" } = options ?? {};
+  const {
+    verbose = false,
+    mode = "production",
+    tsconfigPath = undefined,
+  } = options ?? {};
 
   return {
     ...nextConfig,
     // Next.js doesn't give good types for Webpack config object, so we assume
     // Configuration type here which **should** be fine
     webpack: (config: Configuration, context) => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
-      // const lekko = require("@lekko/webpack-loader");
-
       let webpackConfig = config;
       if (nextConfig.webpack != null) {
         webpackConfig = nextConfig.webpack(config, context) as Configuration;
@@ -49,12 +54,13 @@ export function withLekkoNextConfig(
           test: /lekko\/.*\.ts$/,
           loader: "@lekko/webpack-loader",
           options: {
+            tsconfigPath,
             verbose,
           },
         });
         webpackConfig.plugins.push(
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-          new lekko.LekkoEnvVarPlugin({ target: "next" }),
+          new lekko.LekkoEnvVarPlugin({ prefix: "NEXT_PUBLIC_" }),
         );
       }
       return config;

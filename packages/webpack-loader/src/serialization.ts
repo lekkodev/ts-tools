@@ -8,7 +8,7 @@ Object.values(errors).forEach((ErrorClass) => {
   webpack.util.serialization.register(
     ErrorClass,
     "@lekko/webpack-loader",
-    null,
+    ErrorClass.name,
     {
       serialize() {},
       deserialize() {},

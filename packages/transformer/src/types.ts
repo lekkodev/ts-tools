@@ -17,12 +17,6 @@ export interface LekkoTransformerOptions extends PluginConfig {
    */
   target?: TransformerTarget;
   /**
-   * Whether to emit/update .env with relevant environment variables for Lekko.
-   * Defaults to true. If a string is passed, it will be interpreted as an
-   * alternative filename (e.g. .env.development).
-   */
-  emitEnv?: boolean | string;
-  /**
    * Whether to print more verbose output during transformation. Defaults to false.
    */
   verbose?: boolean;
@@ -30,9 +24,7 @@ export interface LekkoTransformerOptions extends PluginConfig {
 
 export type TransformerTarget = "node" | "vite" | "next";
 
-export type LekkoLogicalOperator =
-  | "LOGICAL_OPERATOR_AND"
-  | "LOGICAL_OPERATOR_OR";
+export type LekkoLogicalOperator = "LOGICAL_OPERATOR_AND" | "LOGICAL_OPERATOR_OR";
 
 // TODO: Other comparators
 export type LekkoComparisonOperator =
@@ -56,18 +48,17 @@ export type LekkoConfigType =
   | "FEATURE_TYPE_JSON"
   | "FEATURE_TYPE_PROTO";
 
-export type LekkoConfigTypeURL<T extends LekkoConfigType> =
-  T extends "FEATURE_TYPE_BOOL"
-    ? "type.googleapis.com/google.protobuf.BoolValue"
-    : T extends "FEATURE_TYPE_BOOL"
-      ? "type.googleapis.com/google.protobuf.StringValue"
-      : T extends "FEATURE_TYPE_INT"
-        ? "type.googleapis.com/google.protobuf.IntValue"
-        : T extends "FEATURE_TYPE_FLOAT"
-          ? "type.googleapis.com/google.protobuf.FloatValue"
-          : T extends "FEATURE_TYPE_PROTO"
-            ? string
-            : never; // JSON not currently supported
+export type LekkoConfigTypeURL<T extends LekkoConfigType> = T extends "FEATURE_TYPE_BOOL"
+  ? "type.googleapis.com/google.protobuf.BoolValue"
+  : T extends "FEATURE_TYPE_BOOL"
+    ? "type.googleapis.com/google.protobuf.StringValue"
+    : T extends "FEATURE_TYPE_INT"
+      ? "type.googleapis.com/google.protobuf.IntValue"
+      : T extends "FEATURE_TYPE_FLOAT"
+        ? "type.googleapis.com/google.protobuf.FloatValue"
+        : T extends "FEATURE_TYPE_PROTO"
+          ? string
+          : never; // JSON not currently supported
 
 export interface LekkoConfigJSON<T extends LekkoConfigType = LekkoConfigType> {
   key: string;
@@ -84,16 +75,15 @@ export interface LekkoConfigJSONTree<T extends LekkoConfigType> {
   }[];
 }
 
-export type LekkoConfigJSONValue<T extends LekkoConfigType = LekkoConfigType> =
-  T extends "FEATURE_TYPE_BOOL"
-    ? { "@type": LekkoConfigTypeURL<T>; value: boolean }
-    : T extends "FEATURE_TYPE_STRING"
-      ? { "@type": LekkoConfigTypeURL<T>; value: string }
-      : T extends "FEATURE_TYPE_INT" | "FEATURE_TYPE_FLOAT"
-        ? { "@type": LekkoConfigTypeURL<T>; value: number }
-        : T extends "FEATURE_TYPE_PROTO"
-          ? { "@type": string; [key: string]: JSONValue }
-          : never;
+export type LekkoConfigJSONValue<T extends LekkoConfigType = LekkoConfigType> = T extends "FEATURE_TYPE_BOOL"
+  ? { "@type": LekkoConfigTypeURL<T>; value: boolean }
+  : T extends "FEATURE_TYPE_STRING"
+    ? { "@type": LekkoConfigTypeURL<T>; value: string }
+    : T extends "FEATURE_TYPE_INT" | "FEATURE_TYPE_FLOAT"
+      ? { "@type": LekkoConfigTypeURL<T>; value: number }
+      : T extends "FEATURE_TYPE_PROTO"
+        ? { "@type": string; [key: string]: JSONValue }
+        : never;
 
 export type LekkoConfigJSONRule =
   | {

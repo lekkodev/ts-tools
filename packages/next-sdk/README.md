@@ -1,10 +1,12 @@
 # @lekko/next-sdk
 
+The Lekko Next.js SDK allows you to use dynamic configuration in your Next.js project via lekkos.
+
 ## Usage
 
-In your `next.config.js`, add the Lekko helper. This will perform build-time checks and transformations for your Lekko config functions.
+In your `next.config.js`, add the `withLekkoNextConfig` helper wrapper. This will perform build-time checks and transformations for your lekkos.
 
-Notice that this wrapper is imported from `@lekko/next-sdk/config` and not just `@lekko/next-sdk`.
+Note that this wrapper is imported from `@lekko/next-sdk/config` and not just `@lekko/next-sdk`.
 
 ```typescript
 const { withLekkoNextConfig } = require("@lekko/next-sdk/config");
@@ -37,7 +39,7 @@ export default function MyClientComponent() {
 }
 ```
 
-Example config functions:
+Example lekkos:
 
 ```typescript
 // lekko/default.ts
@@ -121,3 +123,9 @@ export const getStaticProps = withLekkoStaticProps(...);
 ```
 
 Note if a page doesn't receive the config contents, its sub-component tree will not be able to use dynamic production values of Lekko configs and will use the static fallback instead.
+
+## Environment variables
+
+To connect your project to Lekko's services when building (e.g. when deploying), pass the `NEXT_PUBLIC_LEKKO_API_KEY` environment variable.
+
+You can generate API keys for your team on the Lekko [web UI](https://app.lekko.com) by clicking on your team in the top navigation bar -> Admin tab -> API keys.

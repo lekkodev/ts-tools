@@ -7,7 +7,6 @@ import { type ProtoFileBuilder, type LekkoConfigJSON, type LekkoTransformerOptio
 import { type CheckedFunctionDeclaration, LEKKO_FILENAME_REGEX, assertIsCheckedFunctionDeclaration, isLekkoConfigFile } from "./helpers";
 import { interfaceToProto, genProtoBindings, genProtoFile, functionToConfigJSON, genStarlark, listConfigs, removeConfig, functionToProto } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
-import { emitEnvVars } from "./emit-env-vars";
 import kebabCase from "lodash.kebabcase";
 import { LekkoParseError } from "./errors";
 
@@ -111,7 +110,7 @@ export default function transformProgram(
 ) {
   pluginConfig = pluginConfig ?? {};
   pluginConfig.repoPath ||= getRepoPathFromCLI();
-  const { repoPath = "", configSrcPath = "./src/lekko", emitEnv = true, target = "node" } = pluginConfig ?? {};
+  const { repoPath = "", configSrcPath = "./src/lekko" } = pluginConfig ?? {};
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
 
   const compilerOptions = program.getCompilerOptions();
@@ -191,24 +190,6 @@ export default function transformProgram(
 
   // Patch updated program to cleanly handle diagnostics and such
   patchProgram(updatedProgram);
-
-  // Emit env vars
-  if (emitEnv) {
-    try {
-      emitEnvVars(
-        target,
-        typeof emitEnv === "string"
-          ? emitEnv
-          : // NextJS conventions are to use .env.local by default for local work
-            target === "next"
-            ? ".env.local"
-            : ".env",
-      );
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : e;
-      console.warn("[@lekko/ts-transformer]", msg);
-    }
-  }
 
   return updatedProgram;
 }
@@ -574,4 +555,3 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
     };
   };
 }
-
