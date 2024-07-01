@@ -74,7 +74,6 @@ const loader: LekkoWebpackModule = function (source) {
   const transformed = transformProgram(program, undefined, {
     target: "next",
     configSrcPath: path.dirname(resource),
-    emitEnv: false,
     verbose: this.getOptions().verbose,
   });
   const srcFile = transformed.getSourceFile(resource);

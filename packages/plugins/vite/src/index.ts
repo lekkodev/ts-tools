@@ -78,7 +78,6 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
         undefined,
         {
           target: "vite",
-          emitEnv: false,
           configSrcPath: dotLekko.lekkoPath,
           verbose,
         },

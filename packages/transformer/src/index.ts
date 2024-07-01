@@ -5,7 +5,6 @@ import { program } from "commander";
 import transformProgram, { transformer } from "./transformer";
 import * as helpers from "./helpers";
 import { DotLekko, readDotLekko } from "./dotlekko";
-import { emitEnvVars } from "./emit-env-vars";
 
 if (require.main === module) {
   program.requiredOption("-f, --filename <string>", "ts file to convert to Lekko");
@@ -26,7 +25,6 @@ if (require.main === module) {
     {
       configSrcPath: path.dirname(filename),
       target: "next",
-      emitEnv: false,
     },
     { ts },
   );
@@ -35,5 +33,5 @@ if (require.main === module) {
 
 export default transformProgram;
 
-export { helpers, transformer, emitEnvVars, readDotLekko, DotLekko };
+export { helpers, transformer, readDotLekko, DotLekko };
 export * as errors from "./errors";
