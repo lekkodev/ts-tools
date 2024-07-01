@@ -17,35 +17,30 @@ export interface LekkoWebpackLoaderOptions {
 export class LekkoEnvVarPlugin extends DefinePlugin {
   constructor(
     {
-      target,
       prefix,
       lekkoConfPath,
     }: {
       /**
-       * Target "platform" for this plugin. If specified, the env vars will be named
-       * such that they can be picked up by the build tools for frontend usage.
-       * For example, for `next`, env vars will be prefixed with `NEXT_PUBLIC_`.
-       *
-       * If none of the targets suit your project, see `prefix`.
-       */
-      target?: "node" | "vite" | "next";
-      /**
-       * If the preset `target`s are not suitable for your project, you can pass an
-       * optional prefix that will be prepended to each Lekko environment variable.
-       * For example, passing "REACT_APP_" will give "REACT_APP_LEKKO_API_KEY".
+       * An optional prefix that will be prepended to each Lekko environment variable.
+       * For example, passing "REACT_APP_" will give "REACT_APP_LEKKO_REPOSITORY_NAME".
        */
       prefix?: string;
       lekkoConfPath?: string;
     } = { lekkoConfPath: "." },
   ) {
     const dotLekko = readDotLekko(lekkoConfPath);
-    const resolvedPrefix = prefix ?? target ?? "";
+    const resolvedPrefix = prefix ?? "";
 
-    super({
-      [`process.env.${resolvedPrefix}LEKKO_REPOSITORY_OWNER`]:
+    const def = {
+      [`process.env.${resolvedPrefix}LEKKO_REPOSITORY_OWNER`]: JSON.stringify(
         dotLekko.repoOwner,
-      [`process.env.${resolvedPrefix}LEKKO_REPOSITORY_NAME`]: dotLekko.repoName,
-    });
+      ),
+      [`process.env.${resolvedPrefix}LEKKO_REPOSITORY_NAME`]: JSON.stringify(
+        dotLekko.repoName,
+      ),
+    };
+
+    super(def);
   }
 }
 

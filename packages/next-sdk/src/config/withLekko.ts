@@ -51,7 +51,7 @@ export function withLekkoNextConfig(
         });
         webpackConfig.plugins.push(
           // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-          new lekko.LekkoEnvVarPlugin({ target: "next" }),
+          new lekko.LekkoEnvVarPlugin({ prefix: "NEXT_PUBLIC_" }),
         );
       }
       return config;
