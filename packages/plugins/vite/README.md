@@ -7,7 +7,7 @@ With this plugin, you can write your lekkos as pure functions, which are transfo
 ## Requirements
 
 - Vite >= 4
-- TypeScript project
+- TypeScript
 
 ## Usage
 
@@ -26,13 +26,15 @@ export default defineConfig({
 })
 ```
 
+> [!NOTE]
+> If you initialized your project using `npm create vite`, you might have a split `tsconfig.json` file that uses the project references feature of TypeScript.
+> In this case, you need to pass the `tsconfigPath` option to `lekko()`, an example of which you can see below.
+
 ## Environment variables
 
-The plugin requires the following environment variables in production to ensure that your project is connected to Lekko's services:
+To connect your project to Lekko's services when building (e.g. when deploying), pass the `VITE_LEKKO_API_KEY` environment variable.
 
-- `VITE_LEKKO_API_KEY`: You can generate API keys for your team on the web UI by clicking on your team in the top navigation bar -> Admin tab -> API keys.
-- `VITE_LEKKO_REPOSITORY_OWNER`: The GitHub owner for your generated Lekko repository.
-- `VITE_LEKKO_REPOSITORY_NAME`: The name of your generated Lekko repository. `lekko-configs` by default.
+You can generate API keys for your team on the Lekko [web UI](https://app.lekko.com) by clicking on your team in the top navigation bar -> Admin tab -> API keys.
 
 ## Options
 
@@ -42,15 +44,6 @@ Relative path to your project's `tsconfig.json` file. Defaults to `./tsconfig.js
 
 ```js showLineNumbers
 lekko({ tsconfigPath: "./tsconfig.app.json" });
-```
-
-### `configSrcPath` (optional)
-
-Relative path to the directory containing lekko TypeScript files.
-Defaults to `./src/lekko`.
-
-```js showLineNumbers
-lekko({ configSrcPath: "./some/other/path" });
 ```
 
 ### `verbose` (optional)

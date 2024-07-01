@@ -3,6 +3,10 @@ import { type Configuration } from "webpack";
 import lekko from "@lekko/webpack-loader";
 
 export interface LekkoNextConfigOptions {
+  /**
+   * Path to custom tsconfig file
+   */
+  tsconfigPath?: string;
   verbose?: boolean;
   mode?: "development" | "production" | "all";
 }
@@ -18,7 +22,11 @@ export function withLekkoNextConfig(
   nextConfig: NextConfig,
   options?: LekkoNextConfigOptions,
 ): NextConfig {
-  const { verbose = false, mode = "production" } = options ?? {};
+  const {
+    verbose = false,
+    mode = "production",
+    tsconfigPath = undefined,
+  } = options ?? {};
 
   return {
     ...nextConfig,
@@ -46,6 +54,7 @@ export function withLekkoNextConfig(
           test: /lekko\/.*\.ts$/,
           loader: "@lekko/webpack-loader",
           options: {
+            tsconfigPath,
             verbose,
           },
         });
