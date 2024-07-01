@@ -1,7 +1,11 @@
 import { type Rollup, type Plugin, type PluginOption } from "vite";
 import path from "node:path";
 import ts from "typescript";
-import transformProgram, { helpers, emitEnvVars } from "@lekko/ts-transformer";
+import transformProgram, {
+  helpers,
+  emitEnvVars,
+  readDotLekko,
+} from "@lekko/ts-transformer";
 
 // TODO: We should allow users to specify location
 // **/lekko/<namespace>.ts, namespace must be kebab-case alphanumeric
@@ -68,6 +72,8 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
 
   let tsProgram: ts.Program | undefined;
 
+  const dotLekko = readDotLekko(".");
+
   // Need to emit here instead of buildStart because env vars are resolved
   // before the `configResolved` hook
   if (emitEnv) {
@@ -82,6 +88,19 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
     name: "vite-plugin-lekko-typescript",
     enforce: "pre",
     apply: apply ?? "build",
+
+    config() {
+      return {
+        define: {
+          "import.meta.env.VITE_LEKKO_REPOSITORY_OWNER": JSON.stringify(
+            dotLekko.repoOwner,
+          ),
+          "import.meta.env.VITE_LEKKO_REPOSITORY_NAME": JSON.stringify(
+            dotLekko.repoName,
+          ),
+        },
+      };
+    },
 
     buildStart(_options) {
       // Create & transform program

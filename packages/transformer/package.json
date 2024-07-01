@@ -1,6 +1,6 @@
 {
   "name": "@lekko/ts-transformer",
-  "version": "0.0.9-beta.11",
+  "version": "0.1.0-beta.1",
   "description": "TypeScript transformer for Lekko config definitions",
   "main": "dist/index.js",
   "bin": {
@@ -29,7 +29,8 @@
     "rimraf": "^5.0.5",
     "ts-patch": "^3.1.2",
     "tslib": "^2.6.2",
-    "typescript": "~5.4.0"
+    "typescript": "~5.4.0",
+    "yaml": "^2.4.5"
   },
   "scripts": {
     "build": "rm -rf dist/ && tsc",
