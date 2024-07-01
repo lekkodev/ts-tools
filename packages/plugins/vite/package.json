@@ -1,6 +1,6 @@
 {
   "name": "@lekko/vite-plugin",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Vite plugin for working with Lekko configs in TypeScript",
   "type": "module",
   "main": "dist/index.js",
