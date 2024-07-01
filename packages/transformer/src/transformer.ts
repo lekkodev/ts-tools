@@ -574,4 +574,3 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
     };
   };
 }
-

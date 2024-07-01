@@ -19,9 +19,9 @@ export function readDotLekko(path: string = "."): DotLekko {
   const yamlPath = pathlib.join(path, ".lekko.yaml");
   const ymlPath = pathlib.join(path, ".lekko.yml");
 
-  const bareMissing = fs.existsSync(barePath);
-  const yamlMissing = fs.existsSync(yamlPath);
-  const ymlMissing = fs.existsSync(ymlPath);
+  const bareMissing = !fs.existsSync(barePath);
+  const yamlMissing = !fs.existsSync(yamlPath);
+  const ymlMissing = !fs.existsSync(ymlPath);
 
   if (bareMissing && yamlMissing && ymlMissing) {
     throw new LekkoConfError(`Lekko configuration file not found in ${path}`);

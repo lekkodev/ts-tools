@@ -25,9 +25,6 @@ export function withLekkoNextConfig(
     // Next.js doesn't give good types for Webpack config object, so we assume
     // Configuration type here which **should** be fine
     webpack: (config: Configuration, context) => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
-      // const lekko = require("@lekko/webpack-loader");
-
       let webpackConfig = config;
       if (nextConfig.webpack != null) {
         webpackConfig = nextConfig.webpack(config, context) as Configuration;
