@@ -7,6 +7,9 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export default tseslint.config(
+  {
+    ignores: ["**/*.js", "**/*.cjs", "**/*.mjs", "**/bin/**/*", "**/dist/**/*"],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -31,7 +34,6 @@ export default tseslint.config(
         },
       ],
     },
-    ignores: ["**/*.js", "**/*.cjs", "**/*.mjs", "**/bin/**/*", "**/dist/**/*"],
   },
   eslintConfigPrettier,
 );
