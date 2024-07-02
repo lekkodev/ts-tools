@@ -911,7 +911,7 @@ export function sourceFileToJson(
     sourceFile.fileName,
     path.extname(sourceFile.fileName),
   );
-  const configs: any = [];
+  const configs: Array<{ static_feature: LekkoConfigJSON }> = [];
   const tsInstance = ts;
   const checker = program.getTypeChecker();
 
