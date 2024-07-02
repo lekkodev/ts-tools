@@ -1,6 +1,6 @@
 {
   "name": "@lekko/vite-plugin",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.3",
   "description": "Vite plugin for working with Lekko configs in TypeScript",
   "type": "module",
   "main": "dist/index.js",
@@ -23,12 +23,7 @@
     "type": "git",
     "url": "git+https://github.com/lekkodev/ts-tools.git"
   },
-  "keywords": [
-    "lekko",
-    "vite",
-    "typescript",
-    "ts"
-  ],
+  "keywords": ["lekko", "vite", "typescript", "ts"],
   "author": "",
   "license": "MIT",
   "bugs": {
