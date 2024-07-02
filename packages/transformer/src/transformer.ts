@@ -297,70 +297,52 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
                 : [],
             ),
             node.type,
-            prependParamVars(
-              node,
-              CTX_IDENTIFIER_NAME,
-              wrapTryCatch(
-                factory.createBlock(
-                  [
-                    factory.createVariableStatement(
+            wrapTryCatch(
+              factory.createBlock(
+                [
+                  factory.createVariableStatement(
+                    undefined,
+                    factory.createVariableDeclarationList(
+                      [
+                        factory.createVariableDeclaration(
+                          CONFIG_IDENTIFIER_NAME,
+                          undefined,
+                          undefined,
+                          factory.createNewExpression(
+                            factory.createPropertyAccessExpression(factory.createIdentifier("lekko_pb"), factory.createIdentifier(protoType)),
+                            undefined,
+                            [],
+                          ),
+                        ),
+                      ],
+                      tsInstance.NodeFlags.Const,
+                    ),
+                  ),
+                  factory.createExpressionStatement(
+                    factory.createCallExpression(
+                      factory.createPropertyAccessExpression(factory.createIdentifier(CONFIG_IDENTIFIER_NAME), factory.createIdentifier("fromBinary")),
                       undefined,
-                      factory.createVariableDeclarationList(
-                        [
-                          factory.createVariableDeclaration(
-                            CONFIG_IDENTIFIER_NAME,
+                      [
+                        factory.createPropertyAccessExpression(
+                          factory.createCallExpression(
+                            factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("getProto")),
                             undefined,
-                            undefined,
-                            factory.createNewExpression(
-                              factory.createPropertyAccessExpression(factory.createIdentifier("lekko_pb"), factory.createIdentifier(protoType)),
-                              undefined,
-                              [],
-                            ),
+                            [
+                              factory.createStringLiteral(namespace),
+                              factory.createStringLiteral(configName),
+                              factory.createIdentifier(CTX_IDENTIFIER_NAME),
+                            ].concat(target !== "node" ? [factory.createIdentifier("client")] : []),
                           ),
-                        ],
-                        tsInstance.NodeFlags.Const,
-                      ),
+                          factory.createIdentifier("value"),
+                        ),
+                      ],
                     ),
-                    factory.createExpressionStatement(
-                      factory.createCallExpression(
-                        factory.createPropertyAccessExpression(factory.createIdentifier(CONFIG_IDENTIFIER_NAME), factory.createIdentifier("fromBinary")),
-                        undefined,
-                        [
-                          factory.createPropertyAccessExpression(
-                            factory.createCallExpression(
-                              factory.createPropertyAccessExpression(
-                                target !== "node"
-                                  ? factory.createIdentifier("client")
-                                  : factory.createParenthesizedExpression(
-                                      factory.createPropertyAccessExpression(factory.createIdentifier("globalThis"), factory.createIdentifier("lekkoClient")),
-                                    ),
-                                factory.createIdentifier("getProto"),
-                              ),
-                              undefined,
-                              [
-                                factory.createStringLiteral(namespace),
-                                factory.createStringLiteral(configName),
-                                factory.createCallExpression(
-                                  factory.createPropertyAccessExpression(
-                                    factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("ClientContext")),
-                                    factory.createIdentifier("fromJSON"),
-                                  ),
-                                  undefined,
-                                  [factory.createIdentifier(CTX_IDENTIFIER_NAME)],
-                                ),
-                              ],
-                            ),
-                            factory.createIdentifier("value"),
-                          ),
-                        ],
-                      ),
-                    ),
-                    factory.createReturnStatement(factory.createIdentifier(CONFIG_IDENTIFIER_NAME)),
-                  ],
-                  true,
-                ),
-                node.body,
+                  ),
+                  factory.createReturnStatement(factory.createIdentifier(CONFIG_IDENTIFIER_NAME)),
+                ],
+                true,
               ),
+              prependParamVars(node, CTX_IDENTIFIER_NAME, node.body),
             ),
           ),
           // For use by FE SDKs to be able to identify configs
@@ -410,40 +392,22 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
               : [],
           ),
           node.type,
-          prependParamVars(
-            node,
-            CTX_IDENTIFIER_NAME,
-            wrapTryCatch(
-              factory.createBlock(
-                [
-                  factory.createReturnStatement(
-                    factory.createCallExpression(
-                      factory.createPropertyAccessExpression(
-                        target !== "node"
-                          ? factory.createIdentifier("client")
-                          : factory.createPropertyAccessExpression(factory.createIdentifier("globalThis"), factory.createIdentifier("lekkoClient")),
-                        factory.createIdentifier(getter),
-                      ),
-                      undefined,
-                      [
-                        factory.createStringLiteral(namespace),
-                        factory.createStringLiteral(configName),
-                        factory.createCallExpression(
-                          factory.createPropertyAccessExpression(
-                            factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("ClientContext")),
-                            factory.createIdentifier("fromJSON"),
-                          ),
-                          undefined,
-                          [factory.createIdentifier(CTX_IDENTIFIER_NAME)],
-                        ),
-                      ],
+          wrapTryCatch(
+            factory.createBlock(
+              [
+                factory.createReturnStatement(
+                  factory.createCallExpression(
+                    factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier(getter)),
+                    undefined,
+                    [factory.createStringLiteral(namespace), factory.createStringLiteral(configName), factory.createIdentifier(CTX_IDENTIFIER_NAME)].concat(
+                      target !== "node" ? [factory.createIdentifier("client")] : [],
                     ),
                   ),
-                ],
-                true,
-              ),
-              node.body,
+                ),
+              ],
+              true,
             ),
+            prependParamVars(node, CTX_IDENTIFIER_NAME, node.body),
           ),
         ),
         factory.createExpressionStatement(
