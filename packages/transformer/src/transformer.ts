@@ -5,7 +5,16 @@ import { type ProgramTransformerExtras, type TransformerExtras } from "ts-patch"
 import ts from "typescript";
 import { type ProtoFileBuilder, type LekkoConfigJSON, type LekkoTransformerOptions } from "./types";
 import { type CheckedFunctionDeclaration, LEKKO_FILENAME_REGEX, assertIsCheckedFunctionDeclaration, isLekkoConfigFile } from "./helpers";
-import { interfaceToProto, genProtoBindings, genProtoFile, functionToConfigJSON, genStarlark, listConfigs, removeConfig, functionToProto } from "./ts-to-lekko";
+import {
+  handleInterfaceAsProto,
+  genProtoBindings,
+  genProtoFile,
+  functionToConfigJSON,
+  genStarlark,
+  listConfigs,
+  removeConfig,
+  handleFunctionParamsAsProtos,
+} from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
 import kebabCase from "lodash.kebabcase";
 import { LekkoParseError } from "./errors";
@@ -28,6 +37,7 @@ export function getRepoPathFromCLI(): string {
 export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOptions, extras?: TransformerExtras) {
   const { configSrcPath = "./src/lekko", repoPath = "" } = pluginConfig;
   const resolvedConfigSrcPath = path.resolve(configSrcPath);
+  // FIXME: Remove - no need for this with dotlekko
   const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, resolvedConfigSrcPath));
   if (lekkoSourceFiles.length === 0) {
     console.warn(`[@lekko/ts-transformer] No Lekko files found at "${configSrcPath}", is configSrcPath set correctly?`);
@@ -40,47 +50,45 @@ export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOp
   const configs: LekkoConfigJSON[] = [];
 
   function visitSourceFile(sourceFile: ts.SourceFile) {
+    // e.g. src/lekko/default.ts -> default
     const namespace = path.basename(sourceFile.fileName, path.extname(sourceFile.fileName));
 
     function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
       if (tsInstance.isSourceFile(node)) {
-        const match = node.fileName.match(LEKKO_FILENAME_REGEX);
-        if (match) {
-          tsInstance.visitEachChild(node, visit, undefined);
-          try {
-            // The following are per-file operations
-            const configSet = new Set(listConfigs(repoPath, namespace));
-            genProtoFile(node, repoPath, protoFileBuilder);
-            configs.forEach((config) => {
-              genStarlark(repoPath, namespace, config);
-              // If used to gen starlark, don't remove in cleanup
-              configSet.delete(config.key);
-            });
-            // Remove leftover configs that weren't in ns file
-            // TODO: Batch remove in CLI
-            configSet.forEach((configKey) => {
-              try {
-                removeConfig(repoPath, namespace, configKey);
-              } catch (e) {
-                // Failing to remove is fine, log but ignore
-                if (e instanceof Error) {
-                  console.log(`[@lekko/ts-transformer] Failed to remove config ${namespace}/${configKey}: ${e.message}`);
-                }
+        tsInstance.visitEachChild(node, visit, undefined);
+        try {
+          // The following are per-file operations
+          const configSet = new Set(listConfigs(repoPath, namespace));
+          genProtoFile(node, repoPath, protoFileBuilder);
+          configs.forEach((config) => {
+            genStarlark(repoPath, namespace, config);
+            // If used to gen starlark, don't remove in cleanup
+            configSet.delete(config.key);
+          });
+          // Remove leftover configs that weren't in ns file
+          // TODO: Batch remove in CLI
+          configSet.forEach((configKey) => {
+            try {
+              removeConfig(repoPath, namespace, configKey);
+            } catch (e) {
+              // Failing to remove is fine, log but ignore
+              if (e instanceof Error) {
+                console.log(`[@lekko/ts-transformer] Failed to remove config ${namespace}/${configKey}: ${e.message}`);
               }
-            });
+            }
+          });
 
-            const genTSCmd = spawnSync("lekko", ["gen", "ts", "-n", namespace, "-r", repoPath], {
-              encoding: "utf-8",
-            });
-            if (genTSCmd.error !== undefined || genTSCmd.status !== 0) {
-              throw new Error(`Failed to generate TS:\n${genTSCmd.stdout}`);
-            }
-          } catch (e) {
-            if (pluginConfig.verbose === true && e instanceof Error) {
-              console.log(`[@lekko/ts-transformer] ${e.message}`);
-            } else {
-              console.log("[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.");
-            }
+          const genTSCmd = spawnSync("lekko", ["gen", "ts", "-n", namespace, "-r", repoPath], {
+            encoding: "utf-8",
+          });
+          if (genTSCmd.error !== undefined || genTSCmd.status !== 0) {
+            throw new Error(`Failed to generate TS:\n${genTSCmd.stdout}`);
+          }
+        } catch (e) {
+          if (pluginConfig.verbose === true && e instanceof Error) {
+            console.log(`[@lekko/ts-transformer] ${e.message}`);
+          } else {
+            console.log("[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.");
           }
         }
       } else if (tsInstance.isFunctionDeclaration(node)) {
@@ -88,9 +96,9 @@ export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOp
         // Apply changes to config repo
         const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
         configs.push(configJSON);
-        functionToProto(checkedNode, checker, protoFileBuilder);
+        handleFunctionParamsAsProtos(checkedNode, checker, protoFileBuilder);
       } else if (tsInstance.isInterfaceDeclaration(node)) {
-        interfaceToProto(node, checker, protoFileBuilder);
+        handleInterfaceAsProto(node, checker, protoFileBuilder);
       }
       return undefined;
     }
@@ -148,6 +156,8 @@ export default function transformProgram(
     ],
     compilerOptions,
   ).transformed;
+
+  // FIXME: REMOVE
   // Then, we need to generate proto bindings and add the generated + transformed source files to the program
   const printer = tsInstance.createPrinter();
   transformedSources.forEach((sourceFile) => {

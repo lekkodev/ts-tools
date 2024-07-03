@@ -344,7 +344,6 @@ export function functionToConfigJSON(
 
   const config: LekkoConfigJSON<typeof configType> = {
     key: configKey,
-    // TODO: Handle descriptions
     description: getDescription(node) ?? "",
     tree: {
       default: configTreeDefault,
@@ -372,7 +371,7 @@ function functionToArgsDescriptor(node: CheckedFunctionDeclaration, checker: ts.
 }
 
 /** Mutates the passed builder */
-export function functionToProto(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, builder: ProtoFileBuilder) {
+export function handleFunctionParamsAsProtos(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, builder: ProtoFileBuilder) {
   if (node.parameters.length === 0) {
     return;
   }
@@ -406,7 +405,7 @@ export function genStarlark(repoPath: string, namespace: string, config: LekkoCo
 /**
  * Mutates the proto builder based on the interface declaration node.
  */
-export function interfaceToProto(node: ts.InterfaceDeclaration, checker: TypeChecker, builder: ProtoFileBuilder) {
+export function handleInterfaceAsProto(node: ts.InterfaceDeclaration, checker: TypeChecker, builder: ProtoFileBuilder) {
   const name = node.name.getText();
   const fields = node.members.map((member, idx) => {
     if (ts.isPropertySignature(member)) {
