@@ -12,6 +12,7 @@ import { LekkoParseError } from "./errors";
 
 const CONFIG_IDENTIFIER_NAME = "_config";
 const CTX_IDENTIFIER_NAME = "_ctx";
+const EXCEPTION_NAME = "e";
 
 export function getRepoPathFromCLI(): string {
   const repoCmd = spawnSync("lekko", ["repo", "path"], { encoding: "utf-8" });
@@ -342,7 +343,7 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
                 ],
                 true,
               ),
-              prependParamVars(node, CTX_IDENTIFIER_NAME, node.body),
+              addDebugLogs(namespace, configName, prependParamVars(node, CTX_IDENTIFIER_NAME, node.body)),
             ),
           ),
           // For use by FE SDKs to be able to identify configs
@@ -407,7 +408,7 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
               ],
               true,
             ),
-            prependParamVars(node, CTX_IDENTIFIER_NAME, node.body),
+            addDebugLogs(namespace, configName, prependParamVars(node, CTX_IDENTIFIER_NAME, node.body)),
           ),
         ),
         factory.createExpressionStatement(
@@ -432,6 +433,24 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
           ),
         ),
       ];
+    }
+
+    function addDebugLogs(ns: string, name: string, block: ts.Block): ts.Block {
+      const statements: ts.Statement[] = [
+        factory.createExpressionStatement(
+          factory.createCallExpression(factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("log")), undefined, [
+            factory.createStringLiteral(`[lekko] Failed to evaluate ${ns}/${name}: `),
+            factory.createIdentifier(EXCEPTION_NAME),
+          ]),
+        ),
+        factory.createExpressionStatement(
+          factory.createCallExpression(factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("log")), undefined, [
+            factory.createStringLiteral(`[lekko] Using in-code fallback for ${ns}/${name}.`),
+          ]),
+        ),
+      ];
+      statements.push(...block.statements);
+      return factory.createBlock(statements);
     }
 
     // Prepend the given body with a variable assignment to make the function's parameters available
@@ -474,7 +493,7 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
       return factory.createBlock([
         factory.createTryStatement(
           tryBlock,
-          factory.createCatchClause(factory.createVariableDeclaration(factory.createIdentifier("e"), undefined, undefined, undefined), catchBlock),
+          factory.createCatchClause(factory.createVariableDeclaration(factory.createIdentifier(EXCEPTION_NAME), undefined, undefined, undefined), catchBlock),
           undefined,
         ),
       ]);
