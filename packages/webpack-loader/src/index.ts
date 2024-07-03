@@ -14,6 +14,7 @@ export interface LekkoWebpackLoaderOptions {
 
 // Plugin to be used alongside loader for handling env vars
 // TODO: This is only specific to Next.js right now, should be generalized eventually
+// TODO: If possible, update so we only need to use the plugin which should be able to dynamically use the loader
 export class LekkoEnvVarPlugin extends DefinePlugin {
   constructor(
     {

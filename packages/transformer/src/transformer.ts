@@ -17,9 +17,11 @@ import {
 import { patchCompilerHost, patchProgram } from "./patch";
 import kebabCase from "lodash.kebabcase";
 import { LekkoParseError } from "./errors";
+import { readDotLekko } from "./dotlekko";
 
 const CTX_IDENTIFIER_NAME = "_ctx";
-const EXCEPTION_NAME = "e";
+const EXCEPTION_IDENTIFIER_NAME = "e";
+const CLIENT_IDENTIFIER_NAME = "_client";
 
 export function getRepoPathFromCLI(): string {
   const repoCmd = spawnSync("lekko", ["repo", "path"], { encoding: "utf-8" });
@@ -33,12 +35,13 @@ export function getRepoPathFromCLI(): string {
  * Generate Proto and Starlark from Typescript and then regenerate Typescript back
  */
 export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOptions, extras?: TransformerExtras) {
-  const { configSrcPath = "./src/lekko", repoPath = "" } = pluginConfig;
-  const resolvedConfigSrcPath = path.resolve(configSrcPath);
+  const { repoPath = "" } = pluginConfig;
+  const dot = readDotLekko();
+  const lekkoPath = path.resolve(dot.lekkoPath);
   // FIXME: Remove - no need for this with dotlekko
-  const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, resolvedConfigSrcPath));
+  const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, lekkoPath));
   if (lekkoSourceFiles.length === 0) {
-    console.warn(`[@lekko/ts-transformer] No Lekko files found at "${configSrcPath}", is configSrcPath set correctly?`);
+    console.warn(`[@lekko/ts-transformer] No Lekko files found at "${dot.lekkoPath}"`);
   }
 
   const tsInstance = extras?.ts ?? ts;
@@ -117,8 +120,8 @@ export default function transformProgram(
 ) {
   pluginConfig = pluginConfig ?? {};
   pluginConfig.repoPath ||= getRepoPathFromCLI();
-  const { configSrcPath = "./src/lekko" } = pluginConfig ?? {};
-  const resolvedConfigSrcPath = path.resolve(configSrcPath);
+  const dot = readDotLekko();
+  const lekkoPath = path.resolve(dot.lekkoPath);
 
   const compilerOptions = program.getCompilerOptions();
   const tsInstance = extras?.ts ?? ts;
@@ -130,9 +133,7 @@ export default function transformProgram(
   patchCompilerHost(compilerHost, sfCache);
 
   // We run our source transformer on existing source files first.
-  // As a side effect, this pushes configs generated from Lekko-TS files to the
-  // local config repo (starlark + protos).
-  const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, resolvedConfigSrcPath));
+  const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, lekkoPath));
 
   const transformerExtras: TransformerExtras = {
     ts: tsInstance,
@@ -142,15 +143,16 @@ export default function transformProgram(
     diagnostics: [],
   };
 
-  twoWaySync(program, pluginConfig, transformerExtras);
+  // FIXME: Remove
+  // twoWaySync(program, pluginConfig, transformerExtras);
 
-  let updatedProgram = tsInstance.createProgram([...rootFileNames, ...sfCache.keys()], compilerOptions, compilerHost);
-
+  // let updatedProgram = tsInstance.createProgram([...rootFileNames, ...sfCache.keys()], compilerOptions, compilerHost);
+  console.log("dbg// root file names", rootFileNames);
   const transformedSources = tsInstance.transform(
     lekkoSourceFiles,
     [
       // TODO: restructure source transformer
-      transformer(updatedProgram, pluginConfig, transformerExtras),
+      transformer(program, pluginConfig, transformerExtras),
     ],
     compilerOptions,
   ).transformed;
@@ -161,17 +163,9 @@ export default function transformProgram(
     const printed = printer.printFile(sourceFile);
 
     sfCache.set(sourceFile.fileName, tsInstance.createSourceFile(sourceFile.fileName, printed, sourceFile.languageVersion));
-
-    if (pluginConfig?.verbose) {
-      console.log("-".repeat(12 + sourceFile.fileName.length));
-      console.log(`Transformed ${sourceFile.fileName}:`);
-      console.log("-".repeat(12 + sourceFile.fileName.length));
-      console.log(printed);
-      console.log("-".repeat(12 + sourceFile.fileName.length));
-    }
   });
   // We need to add these bindings to the program
-  updatedProgram = tsInstance.createProgram([...rootFileNames, ...sfCache.keys()], compilerOptions, compilerHost);
+  const updatedProgram = tsInstance.createProgram([...rootFileNames, ...sfCache.keys()], compilerOptions, compilerHost);
 
   // Patch updated program to cleanly handle diagnostics and such
   patchProgram(updatedProgram);
@@ -241,7 +235,7 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
               undefined,
             ),
             // Pass client as second parameter (in body, also try to get global client)
-            factory.createParameterDeclaration(undefined, undefined, factory.createIdentifier("client"), undefined, undefined, undefined),
+            factory.createParameterDeclaration(undefined, undefined, factory.createIdentifier(CLIENT_IDENTIFIER_NAME), undefined, undefined, undefined),
           ],
           node.type,
           wrapTryCatch(
@@ -255,7 +249,7 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
                       factory.createStringLiteral(namespace),
                       factory.createStringLiteral(configName),
                       factory.createIdentifier(CTX_IDENTIFIER_NAME),
-                      factory.createIdentifier("client"),
+                      factory.createIdentifier(CLIENT_IDENTIFIER_NAME),
                     ],
                   ),
                 ),
@@ -294,7 +288,7 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
         factory.createExpressionStatement(
           factory.createCallExpression(factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("log")), undefined, [
             factory.createStringLiteral(`[lekko] Failed to evaluate ${ns}/${name}: `),
-            factory.createIdentifier(EXCEPTION_NAME),
+            factory.createIdentifier(EXCEPTION_IDENTIFIER_NAME),
           ]),
         ),
         factory.createExpressionStatement(
@@ -347,7 +341,10 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
       return factory.createBlock([
         factory.createTryStatement(
           tryBlock,
-          factory.createCatchClause(factory.createVariableDeclaration(factory.createIdentifier(EXCEPTION_NAME), undefined, undefined, undefined), catchBlock),
+          factory.createCatchClause(
+            factory.createVariableDeclaration(factory.createIdentifier(EXCEPTION_IDENTIFIER_NAME), undefined, undefined, undefined),
+            catchBlock,
+          ),
           undefined,
         ),
       ]);
@@ -388,6 +385,15 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
         return node;
       }
       const visited = tsInstance.visitNode(sourceFile, visit) as ts.SourceFile;
+
+      if (pluginConfig?.verbose) {
+        const printer = tsInstance.createPrinter();
+        console.log("-".repeat(12 + sourceFile.fileName.length));
+        console.log(`Transformed ${sourceFile.fileName}:`);
+        console.log("-".repeat(12 + sourceFile.fileName.length));
+        console.log(printer.printFile(visited));
+        console.log("-".repeat(12 + sourceFile.fileName.length));
+      }
 
       return visited;
     };
