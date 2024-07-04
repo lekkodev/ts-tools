@@ -143,11 +143,6 @@ export default function transformProgram(
     diagnostics: [],
   };
 
-  // FIXME: Remove
-  // twoWaySync(program, pluginConfig, transformerExtras);
-
-  // let updatedProgram = tsInstance.createProgram([...rootFileNames, ...sfCache.keys()], compilerOptions, compilerHost);
-  console.log("dbg// root file names", rootFileNames);
   const transformedSources = tsInstance.transform(
     lekkoSourceFiles,
     [

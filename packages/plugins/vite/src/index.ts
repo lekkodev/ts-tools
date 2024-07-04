@@ -33,7 +33,7 @@ export default function (options: LekkoViteOptions = {}): PluginOption {
           const tsProgram = ts.createProgram([id], { noEmit: true });
           const sourceFile = tsProgram.getSourceFile(id);
           if (sourceFile === undefined) {
-            this.error(`Unable to fine source file ${id}`);
+            this.error(`Unable to find source file ${id}`);
           }
           const result = ts.transform(sourceFile, [transformer(tsProgram, { verbose: options.verbose })]);
           const printer = ts.createPrinter();
