@@ -7,7 +7,7 @@
     "@types/webpack": "^5.28.5"
   },
   "dependencies": {
-    "@lekko/ts-transformer": "^0.1.0 || >=0.1.0-beta.1",
+    "@lekko/ts-transformer": "^0.2.0 || >=0.2.0-beta.1",
     "webpack": "^5.0.0",
     "typescript": "~5.4.0"
   },

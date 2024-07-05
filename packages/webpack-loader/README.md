@@ -1,6 +1,6 @@
 # @lekko/webpack-loader
 
-This package contains Lekko's Webpack loader and plugin for TypeScript projects bundled using Webpack.
+This package contains Lekko's Webpack plugin for TypeScript projects bundled using Webpack.
 
 These build tools transform your locally defined TypeScript config functions under `lekko/` into code that can communicate with Lekko and serve up-to-date dynamically configured values.
 
@@ -51,17 +51,10 @@ const lekko = require("@lekko/webpack-loader");
 ...
 
 module.exports = {
-  module: {
-    rules: [
-      {
-        test: /lekko\/.*\.ts$/,
-        use: "@lekko/webpack-loader"
-      }
-    ]
-  },
+  ...
   plugins: [
     // Pass the appropriate env var `prefix` so that Lekko env vars will be picked up
-    new lekko.LekkoEnvVarPlugin({ prefix: "REACT_APP_" }),
+    new lekko.LekkoPlugin({ prefix: "REACT_APP_" }),
   ]
 }
 ```

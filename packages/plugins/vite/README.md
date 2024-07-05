@@ -26,10 +26,6 @@ export default defineConfig({
 })
 ```
 
-> [!NOTE]
-> If you initialized your project using `npm create vite`, you might have a split `tsconfig.json` file that uses the project references feature of TypeScript.
-> In this case, you need to pass the `tsconfigPath` option to `lekko()`, an example of which you can see below.
-
 ## Environment variables
 
 To connect your project to Lekko's services when building (e.g. when deploying), pass the `VITE_LEKKO_API_KEY` environment variable.
@@ -37,14 +33,6 @@ To connect your project to Lekko's services when building (e.g. when deploying),
 You can generate API keys for your team on the Lekko [web UI](https://app.lekko.com) by clicking on your team in the top navigation bar -> Admin tab -> API keys.
 
 ## Options
-
-### `tsconfigPath` (optional)
-
-Relative path to your project's `tsconfig.json` file. Defaults to `./tsconfig.json`. This option might be necessary if your project has a non-standard TypeScript setup, or if you use sub-projects via [references](https://www.typescriptlang.org/docs/handbook/project-references.html).
-
-```js showLineNumbers
-lekko({ tsconfigPath: "./tsconfig.app.json" });
-```
 
 ### `verbose` (optional)
 
