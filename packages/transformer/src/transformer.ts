@@ -1,5 +1,7 @@
 import os from "os";
 import path from "path";
+import fs from "node:fs";
+import assert from "assert";
 import { spawnSync } from "child_process";
 import { type ProgramTransformerExtras, type TransformerExtras } from "ts-patch";
 import ts from "typescript";
@@ -16,13 +18,16 @@ import {
 } from "./ts-to-lekko";
 import { patchCompilerHost, patchProgram } from "./patch";
 import kebabCase from "lodash.kebabcase";
-import { LekkoParseError } from "./errors";
+import { LekkoGenError, LekkoParseError } from "./errors";
 import { readDotLekko } from "./dotlekko";
 
 const CTX_IDENTIFIER_NAME = "_ctx";
 const EXCEPTION_IDENTIFIER_NAME = "e";
 const CLIENT_IDENTIFIER_NAME = "_client";
 
+/**
+ * Get path to locally checked out config repo on disk
+ */
 export function getRepoPathFromCLI(): string {
   const repoCmd = spawnSync("lekko", ["repo", "path"], { encoding: "utf-8" });
   if (repoCmd.error !== undefined || repoCmd.status !== 0) {
@@ -34,17 +39,22 @@ export function getRepoPathFromCLI(): string {
 /**
  * Generate Proto and Starlark from Typescript and then regenerate Typescript back
  */
-export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOptions, extras?: TransformerExtras) {
-  const { repoPath = "" } = pluginConfig;
-  const dot = readDotLekko();
-  const lekkoPath = path.resolve(dot.lekkoPath);
-  // FIXME: Remove - no need for this with dotlekko
-  const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, lekkoPath));
-  if (lekkoSourceFiles.length === 0) {
-    console.warn(`[@lekko/ts-transformer] No Lekko files found at "${dot.lekkoPath}"`);
+export function bisync(lekkoPath?: string, repoPath?: string) {
+  if (lekkoPath === undefined) {
+    const dot = readDotLekko();
+    lekkoPath = path.resolve(dot.lekkoPath);
   }
-
-  const tsInstance = extras?.ts ?? ts;
+  if (repoPath === undefined) {
+    repoPath = getRepoPathFromCLI();
+  }
+  const lekkoFiles: string[] = [];
+  fs.readdirSync(lekkoPath).forEach((file) => {
+    if (file.endsWith(".ts")) {
+      lekkoFiles.push(`${lekkoPath}/${file}`);
+    }
+  });
+  const tsInstance = ts;
+  const program = tsInstance.createProgram(lekkoFiles, { noEmit: true });
   const checker = program.getTypeChecker();
 
   const protoFileBuilder: ProtoFileBuilder = { messages: {}, enums: {} };
@@ -55,6 +65,7 @@ export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOp
     const namespace = path.basename(sourceFile.fileName, path.extname(sourceFile.fileName));
 
     function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
+      assert(repoPath !== undefined);
       if (tsInstance.isSourceFile(node)) {
         tsInstance.visitEachChild(node, visit, undefined);
         try {
@@ -74,7 +85,7 @@ export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOp
             } catch (e) {
               // Failing to remove is fine, log but ignore
               if (e instanceof Error) {
-                console.log(`[@lekko/ts-transformer] Failed to remove config ${namespace}/${configKey}: ${e.message}`);
+                console.log(e.message);
               }
             }
           });
@@ -83,13 +94,11 @@ export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOp
             encoding: "utf-8",
           });
           if (genTSCmd.error !== undefined || genTSCmd.status !== 0) {
-            throw new Error(`Failed to generate TS:\n${genTSCmd.stdout}`);
+            throw new LekkoGenError(genTSCmd.stdout);
           }
         } catch (e) {
-          if (pluginConfig.verbose === true && e instanceof Error) {
+          if (e instanceof Error) {
             console.log(`[@lekko/ts-transformer] ${e.message}`);
-          } else {
-            console.log("[@lekko/ts-transformer] CLI tools missing, skipping proto and starlark generation.");
           }
         }
       } else if (tsInstance.isFunctionDeclaration(node)) {
@@ -107,8 +116,10 @@ export function twoWaySync(program: ts.Program, pluginConfig: LekkoTransformerOp
     ts.visitNode(sourceFile, visit);
   }
 
-  lekkoSourceFiles.forEach((sourceFile) => {
-    visitSourceFile(sourceFile);
+  program.getSourceFiles().forEach((sourceFile) => {
+    if (isLekkoConfigFile(sourceFile.fileName, lekkoPath)) {
+      visitSourceFile(sourceFile);
+    }
   });
 }
 

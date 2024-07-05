@@ -4,7 +4,6 @@ import { type PluginConfig } from "ts-patch";
 // unions that might cut down on a lot of conditionals in the consuming code
 
 export interface LekkoTransformerOptions extends PluginConfig {
-  repoPath?: string;
   /**
    * Whether to print more verbose output during transformation. Defaults to false.
    */
