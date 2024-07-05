@@ -4,18 +4,6 @@ import { type PluginConfig } from "ts-patch";
 // unions that might cut down on a lot of conditionals in the consuming code
 
 export interface LekkoTransformerOptions extends PluginConfig {
-  repoPath?: string;
-  /**
-   * Path to find directory of TypeScript files that should be transpiled to
-   * Lekko configs. Should be a flat directory. Defaults to ./src/lekko.
-   */
-  configSrcPath?: string;
-  /**
-   * Target execution environment for transformation. Note that different
-   * targets result in different SDK code and environment variables being used.
-   * Defaults to `node`.
-   */
-  target?: TransformerTarget;
   /**
    * Whether to print more verbose output during transformation. Defaults to false.
    */

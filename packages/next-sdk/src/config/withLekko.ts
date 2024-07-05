@@ -1,14 +1,9 @@
 import { type NextConfig } from "next";
 import { type Configuration } from "webpack";
-import lekko from "@lekko/webpack-loader";
+import { LekkoPlugin } from "@lekko/webpack-loader";
 
 export interface LekkoNextConfigOptions {
-  /**
-   * Path to custom tsconfig file
-   */
-  tsconfigPath?: string;
   verbose?: boolean;
-  mode?: "development" | "production" | "all";
 }
 
 /**
@@ -18,15 +13,8 @@ export interface LekkoNextConfigOptions {
  * config functions to code that can connect with Lekko's services if the
  * correct environment variables are present.
  */
-export function withLekkoNextConfig(
-  nextConfig: NextConfig,
-  options?: LekkoNextConfigOptions,
-): NextConfig {
-  const {
-    verbose = false,
-    mode = "production",
-    tsconfigPath = undefined,
-  } = options ?? {};
+export function withLekkoNextConfig(nextConfig: NextConfig, options?: LekkoNextConfigOptions): NextConfig {
+  const { verbose = false } = options ?? {};
 
   return {
     ...nextConfig,
@@ -37,32 +25,13 @@ export function withLekkoNextConfig(
       if (nextConfig.webpack != null) {
         webpackConfig = nextConfig.webpack(config, context) as Configuration;
       }
-      if (webpackConfig.module === undefined) {
-        webpackConfig.module = {
-          rules: [],
-        };
-      }
-      if (webpackConfig.module.rules === undefined) {
-        webpackConfig.module.rules = [];
-      }
       if (webpackConfig.plugins === undefined) {
         webpackConfig.plugins = [];
       }
-      // TODO: Might need more investigation on how order of loaders works in Next
-      if (mode === "all" || process.env.NODE_ENV === mode) {
-        webpackConfig.module.rules.push({
-          test: /lekko\/.*\.ts$/,
-          loader: "@lekko/webpack-loader",
-          options: {
-            tsconfigPath,
-            verbose,
-          },
-        });
-        webpackConfig.plugins.push(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-          new lekko.LekkoEnvVarPlugin({ prefix: "NEXT_PUBLIC_" }),
-        );
-      }
+      webpackConfig.plugins.push(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        new LekkoPlugin({ prefix: "NEXT_PUBLIC_", verbose }),
+      );
       return config;
     },
   };

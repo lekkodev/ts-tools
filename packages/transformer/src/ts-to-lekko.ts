@@ -6,7 +6,7 @@ import upperFirst from "lodash.upperfirst";
 import fs from "node:fs";
 import path from "node:path";
 import ts, { type TypeChecker } from "typescript";
-import { LekkoParseError } from "./errors";
+import { LekkoGenError, LekkoParseError } from "./errors";
 import {
   type ProtoFileBuilder,
   type JSONObject,
@@ -344,7 +344,6 @@ export function functionToConfigJSON(
 
   const config: LekkoConfigJSON<typeof configType> = {
     key: configKey,
-    // TODO: Handle descriptions
     description: getDescription(node) ?? "",
     tree: {
       default: configTreeDefault,
@@ -372,7 +371,7 @@ function functionToArgsDescriptor(node: CheckedFunctionDeclaration, checker: ts.
 }
 
 /** Mutates the passed builder */
-export function functionToProto(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, builder: ProtoFileBuilder) {
+export function handleFunctionParamsAsProtos(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, builder: ProtoFileBuilder) {
   if (node.parameters.length === 0) {
     return;
   }
@@ -399,14 +398,14 @@ export function genStarlark(repoPath: string, namespace: string, config: LekkoCo
     cwd: repoPath,
   });
   if (spawnReturns.error !== undefined || spawnReturns.status !== 0) {
-    throw new Error(`Failed to generate starlark for ${config.key}: ${spawnReturns.stdout}${spawnReturns.stderr}`);
+    throw new LekkoGenError(`Failed to generate starlark for ${config.key}: ${spawnReturns.stdout}${spawnReturns.stderr}`);
   }
 }
 
 /**
  * Mutates the proto builder based on the interface declaration node.
  */
-export function interfaceToProto(node: ts.InterfaceDeclaration, checker: TypeChecker, builder: ProtoFileBuilder) {
+export function handleInterfaceAsProto(node: ts.InterfaceDeclaration, checker: TypeChecker, builder: ProtoFileBuilder) {
   const name = node.name.getText();
   const fields = node.members.map((member, idx) => {
     if (ts.isPropertySignature(member)) {
@@ -577,66 +576,8 @@ export function genProtoFile(sourceFile: ts.SourceFile, repoPath: string, builde
     encoding: "utf-8",
   });
   if (formatCmd.error !== undefined || formatCmd.status !== 0) {
-    throw new Error(`Failed to generate well-formed protobuf files: ${formatCmd.stdout}${formatCmd.stderr}.`);
+    throw new LekkoGenError(`Failed to generate well-formed protobuf files: ${formatCmd.stdout}${formatCmd.stderr}.`);
   }
-}
-
-/**
- * Generate TS proto bindings. Depends on the buf CLI. Returns a map of
- * relative paths to generated ts contents.
- * This is a generator function - it can be reentered to trigger cleanup logic.
- */
-export function* genProtoBindings(repoPath: string, outputPath: string, namespace: string) {
-  const protoPath = getProtoPath(repoPath, namespace);
-
-  if (!fs.existsSync(protoPath)) {
-    yield {} as Record<string, string>;
-    return;
-  }
-
-  // Generate
-  const bufGenTemplate = JSON.stringify({
-    version: "v1",
-    managed: { enabled: true },
-    plugins: [
-      {
-        plugin: "buf.build/bufbuild/es:v1.7.2",
-        out: "gen",
-        opt: ["target=ts"],
-      },
-    ],
-  });
-  const cmd = spawnSync("buf", ["generate", "--template", bufGenTemplate, repoPath, "--path", protoPath, "--output", outputPath], {
-    encoding: "utf-8",
-  });
-
-  if (cmd.error !== undefined || cmd.status !== 0) {
-    throw new Error("Failed to generate proto bindings");
-  }
-
-  // Can stop here if not interested in contents
-  yield {};
-  // Yield the generated _pb.ts files' relative paths and contents
-  const relGenPath = path.join("gen", namespace, "config", "v1beta1");
-  const absGenPath = path.join(outputPath, relGenPath);
-  const files: Record<string, string> = {};
-  if (!fs.existsSync(absGenPath)) {
-    yield files;
-    return;
-  }
-  fs.readdirSync(absGenPath, {
-    withFileTypes: true,
-  }).forEach((dirEnt) => {
-    if (dirEnt.isFile() && path.extname(dirEnt.name) === ".ts") {
-      files[path.join(relGenPath, dirEnt.name)] = fs.readFileSync(path.join(absGenPath, dirEnt.name), {
-        encoding: "utf-8",
-      });
-    }
-  });
-  yield files;
-
-  // Clean up generated bindings
-  // rimrafSync(outputPath);
 }
 
 function processArrayElement(element: ts.Expression) {

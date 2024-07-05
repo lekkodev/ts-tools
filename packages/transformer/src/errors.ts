@@ -9,4 +9,16 @@ export class LekkoParseError extends Error {
   }
 }
 
-export class LekkoConfError extends Error {}
+export class LekkoConfError extends Error {
+  constructor(message: string) {
+    super(`Lekko configuration file error: ${message}`);
+    this.name = "LekkoConfError";
+  }
+}
+
+export class LekkoGenError extends Error {
+  constructor(message: string) {
+    super(`Lekko code generation error: ${message}`);
+    this.name = "LekkoGenError";
+  }
+}

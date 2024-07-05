@@ -1,10 +1,7 @@
 import { type PropsWithChildren } from "react";
 import { GetRepositoryContentsResponse } from "@lekko/js-sdk/internal";
 import { createEnvelopeReadableStream } from "@connectrpc/connect/protocol";
-import {
-  trailerFlag,
-  trailerParse,
-} from "@connectrpc/connect/protocol-grpc-web";
+import { trailerFlag, trailerParse } from "@connectrpc/connect/protocol-grpc-web";
 import { fromUint8Array } from "js-base64";
 import { LekkoClientProvider } from "./client";
 import { type EncodedLekkoConfigs } from "./types";
@@ -22,8 +19,7 @@ async function getRepositoryContents(
   revalidate: number | false,
 ) {
   const response = await fetch(
-    "https://relay.lekko-cdn.com/" +
-      btoa(`${repositoryOwner}/${repositoryName}/${apiKey}`),
+    "https://relay.lekko-cdn.com/" + btoa(`${repositoryOwner}/${repositoryName}/${apiKey}`),
     { next: { revalidate } },
   );
   if (!response.ok || response.body === null) {
@@ -77,7 +73,6 @@ export async function getEncodedLekkoConfigs({
   apiKey,
   repositoryOwner,
   repositoryName,
-  mode,
 }: {
   /**
    * Maximum time, in seconds, of how long Lekko configs fetched from remote
@@ -94,40 +89,22 @@ export async function getEncodedLekkoConfigs({
   apiKey?: string;
   repositoryOwner?: string;
   repositoryName?: string;
-  mode?: "production" | "development" | "test";
 } = {}): Promise<EncodedLekkoConfigs | null> {
-  mode ??= process.env.NODE_ENV;
   apiKey ??= process.env.NEXT_PUBLIC_LEKKO_API_KEY;
   repositoryOwner ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
   repositoryName ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
 
-  // TODO: Remove - use env var presence for local/prod split and consolidate with Next config option
-  if (mode === "production") {
-    if (
-      apiKey === undefined ||
-      repositoryOwner === undefined ||
-      repositoryName === undefined
-    ) {
-      console.warn(
-        "Missing Lekko environment variables, make sure NEXT_PUBLIC_LEKKO_API_KEY, NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER, NEXT_PUBLIC_LEKKO_REPOSITORY_NAME are set. Evaluation will default to static fallback.",
-      );
-      return null;
-    }
-    try {
-      const contents = await getRepositoryContents(
-        apiKey,
-        repositoryOwner,
-        repositoryName,
-        revalidate ?? 15,
-      );
-      return fromUint8Array(contents.toBinary());
-    } catch (e) {
-      console.warn(
-        `Failed to fetch and encode config repository contents, will default to static fallback: ${(e as Error).message}`,
-      );
-    }
+  if (apiKey === undefined || repositoryOwner === undefined || repositoryName === undefined) {
+    return null;
   }
-  // No need for fetch in local development
+  try {
+    const contents = await getRepositoryContents(apiKey, repositoryOwner, repositoryName, revalidate ?? 15);
+    return fromUint8Array(contents.toBinary());
+  } catch (e) {
+    console.warn(
+      `Failed to fetch and encode config repository contents, will default to static fallback: ${(e as Error).message}`,
+    );
+  }
   return null;
 }
 
@@ -143,15 +120,6 @@ export interface LekkoNextProviderProps extends PropsWithChildren {
    * Defaults to 15 seconds.
    */
   revalidate?: number | false;
-  /**
-   * In development mode, the Lekko SDK client is not fully initialized
-   * and does not connect to Lekko's services. In production mode, Lekko-related
-   * environment variables are required and the SDK client will connect to Lekko
-   * to fetch configs and send evaluation metrics.
-   *
-   * Defaults to read from `process.env.NODE_ENV`.
-   */
-  mode?: "development" | "production" | "test";
 }
 
 /**
@@ -161,19 +129,9 @@ export interface LekkoNextProviderProps extends PropsWithChildren {
  * Client components under it in the component tree will be able to use `useLekkoConfig`
  * to evaluate configs.
  */
-export async function LekkoNextProvider({
-  revalidate,
-  mode,
-  children,
-}: LekkoNextProviderProps) {
-  mode ??= process.env.NODE_ENV;
-
-  const encodedContents = await getEncodedLekkoConfigs({ revalidate, mode });
-  return (
-    <LekkoClientProvider configs={encodedContents}>
-      {children}
-    </LekkoClientProvider>
-  );
+export async function LekkoNextProvider({ revalidate, children }: LekkoNextProviderProps) {
+  const encodedContents = await getEncodedLekkoConfigs({ revalidate });
+  return <LekkoClientProvider configs={encodedContents}>{children}</LekkoClientProvider>;
 }
 
 /**
@@ -182,16 +140,12 @@ export async function LekkoNextProvider({
  *
  * Alternatively, you can manually use `getEncodedLekkoConfigs` in your `getServerSideProps`.
  */
-export function withLekkoServerSideProps(
-  getServerSidePropsFn?: GetServerSideProps,
-): GetServerSideProps {
+export function withLekkoServerSideProps(getServerSidePropsFn?: GetServerSideProps): GetServerSideProps {
   return async (context: GetServerSidePropsContext) => {
     const lekkoConfigs = await getEncodedLekkoConfigs();
 
     const origRet = await getServerSidePropsFn?.(context);
-    const origProps = await (origRet !== undefined && "props" in origRet
-      ? origRet.props
-      : undefined);
+    const origProps = await (origRet !== undefined && "props" in origRet ? origRet.props : undefined);
 
     return {
       ...origRet,
@@ -211,15 +165,12 @@ export function withLekkoServerSideProps(
  *
  * Alternatively, you can manually use `getEncodedLekkoConfigs` in your `getStaticProps`.
  */
-export function withLekkoStaticProps(
-  getStaticPropsFn?: GetStaticProps,
-): GetStaticProps {
+export function withLekkoStaticProps(getStaticPropsFn?: GetStaticProps): GetStaticProps {
   return async (context: GetStaticPropsContext) => {
     const lekkoConfigs = await getEncodedLekkoConfigs();
 
     const origRet = await getStaticPropsFn?.(context);
-    const origProps =
-      origRet !== undefined && "props" in origRet ? origRet.props : undefined;
+    const origProps = origRet !== undefined && "props" in origRet ? origRet.props : undefined;
 
     return {
       ...origRet,
