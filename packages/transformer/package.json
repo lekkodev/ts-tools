@@ -4,7 +4,6 @@
   "description": "TypeScript transformer for Lekko config definitions",
   "main": "dist/index.js",
   "bin": {
-    "ts-to-lekko": "dist/index.js",
     "ts-to-proto": "dist/ts-to-proto.js",
     "lekko-repo-pull": "dist/pull.js",
     "lekko-repo-sync": "dist/sync.js"
@@ -41,7 +40,11 @@
     "type": "git",
     "url": "git+https://github.com/lekkodev/ts-tools.git"
   },
-  "keywords": ["lekko", "typescript", "ts"],
+  "keywords": [
+    "lekko",
+    "typescript",
+    "ts"
+  ],
   "prettier": {
     "printWidth": 160
   },

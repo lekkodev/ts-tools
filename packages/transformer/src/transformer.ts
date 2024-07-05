@@ -3,7 +3,7 @@ import path from "path";
 import fs from "node:fs";
 import assert from "assert";
 import { spawnSync } from "child_process";
-import { type ProgramTransformerExtras, type TransformerExtras } from "ts-patch";
+import { type TransformerExtras } from "ts-patch";
 import ts from "typescript";
 import { type ProtoFileBuilder, type LekkoConfigJSON, type LekkoTransformerOptions } from "./types";
 import { type CheckedFunctionDeclaration, LEKKO_FILENAME_REGEX, assertIsCheckedFunctionDeclaration, isLekkoConfigFile } from "./helpers";
@@ -16,7 +16,6 @@ import {
   removeConfig,
   handleFunctionParamsAsProtos,
 } from "./ts-to-lekko";
-import { patchCompilerHost, patchProgram } from "./patch";
 import kebabCase from "lodash.kebabcase";
 import { LekkoGenError, LekkoParseError } from "./errors";
 import { readDotLekko } from "./dotlekko";
@@ -121,62 +120,6 @@ export function bisync(lekkoPath?: string, repoPath?: string) {
       visitSourceFile(sourceFile);
     }
   });
-}
-
-export default function transformProgram(
-  program: ts.Program,
-  host?: ts.CompilerHost,
-  pluginConfig?: LekkoTransformerOptions,
-  extras?: ProgramTransformerExtras,
-) {
-  pluginConfig = pluginConfig ?? {};
-  pluginConfig.repoPath ||= getRepoPathFromCLI();
-  const dot = readDotLekko();
-  const lekkoPath = path.resolve(dot.lekkoPath);
-
-  const compilerOptions = program.getCompilerOptions();
-  const tsInstance = extras?.ts ?? ts;
-  const rootFileNames = program.getRootFileNames().map(tsInstance.normalizePath);
-  const compilerHost = host ?? tsInstance.createCompilerHost(compilerOptions, true);
-
-  // Patch host to make the generated and transformed source files available
-  const sfCache = new Map<string, ts.SourceFile>();
-  patchCompilerHost(compilerHost, sfCache);
-
-  // We run our source transformer on existing source files first.
-  const lekkoSourceFiles = program.getSourceFiles().filter((sourceFile) => isLekkoConfigFile(sourceFile.fileName, lekkoPath));
-
-  const transformerExtras: TransformerExtras = {
-    ts: tsInstance,
-    library: "typescript",
-    addDiagnostic: () => 0,
-    removeDiagnostic: () => {},
-    diagnostics: [],
-  };
-
-  const transformedSources = tsInstance.transform(
-    lekkoSourceFiles,
-    [
-      // TODO: restructure source transformer
-      transformer(program, pluginConfig, transformerExtras),
-    ],
-    compilerOptions,
-  ).transformed;
-
-  // Then, we need to add the transformed source files to the program
-  const printer = tsInstance.createPrinter();
-  transformedSources.forEach((sourceFile) => {
-    const printed = printer.printFile(sourceFile);
-
-    sfCache.set(sourceFile.fileName, tsInstance.createSourceFile(sourceFile.fileName, printed, sourceFile.languageVersion));
-  });
-  // We need to add these bindings to the program
-  const updatedProgram = tsInstance.createProgram([...rootFileNames, ...sfCache.keys()], compilerOptions, compilerHost);
-
-  // Patch updated program to cleanly handle diagnostics and such
-  patchProgram(updatedProgram);
-
-  return updatedProgram;
 }
 
 export function checkConfigFunctionDeclaration(
