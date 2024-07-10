@@ -1,5 +1,6 @@
 import { type PropsWithChildren } from "react";
 import { GetRepositoryContentsResponse } from "@lekko/js-sdk/internal";
+import { logInfo } from "@lekko/js-sdk";
 import { createEnvelopeReadableStream } from "@connectrpc/connect/protocol";
 import { trailerFlag, trailerParse } from "@connectrpc/connect/protocol-grpc-web";
 import { fromUint8Array } from "js-base64";
@@ -52,6 +53,7 @@ async function getRepositoryContents(
   if (message === undefined) {
     throw new Error("Missing repository contents");
   }
+  logInfo(`[lekko] Connected to ${repositoryOwner}/${repositoryName} using API key "${apiKey?.slice(0, 12)}..."`);
   return message;
 }
 
@@ -89,23 +91,19 @@ export async function getEncodedLekkoConfigs({
   apiKey?: string;
   repositoryOwner?: string;
   repositoryName?: string;
-} = {}): Promise<EncodedLekkoConfigs | null> {
+} = {}): Promise<{ configs?: EncodedLekkoConfigs | null; fetchError?: string }> {
   apiKey ??= process.env.NEXT_PUBLIC_LEKKO_API_KEY;
   repositoryOwner ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
   repositoryName ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
-
   if (apiKey === undefined || repositoryOwner === undefined || repositoryName === undefined) {
-    return null;
+    return { fetchError: "Environment variables are not set." };
   }
   try {
     const contents = await getRepositoryContents(apiKey, repositoryOwner, repositoryName, revalidate ?? 15);
-    return fromUint8Array(contents.toBinary());
+    return { configs: fromUint8Array(contents.toBinary()) };
   } catch (e) {
-    console.warn(
-      `Failed to fetch and encode config repository contents, will default to static fallback: ${(e as Error).message}`,
-    );
+    return { fetchError: `Failed to fetch remote lekkos: ${(e as Error).message}.` };
   }
-  return null;
 }
 
 export interface LekkoNextProviderProps extends PropsWithChildren {
@@ -131,7 +129,11 @@ export interface LekkoNextProviderProps extends PropsWithChildren {
  */
 export async function LekkoNextProvider({ revalidate, children }: LekkoNextProviderProps) {
   const encodedContents = await getEncodedLekkoConfigs({ revalidate });
-  return <LekkoClientProvider configs={encodedContents}>{children}</LekkoClientProvider>;
+  return (
+    <LekkoClientProvider configs={encodedContents.configs} fetchError={encodedContents.fetchError}>
+      {children}
+    </LekkoClientProvider>
+  );
 }
 
 /**
@@ -151,7 +153,7 @@ export function withLekkoServerSideProps(getServerSidePropsFn?: GetServerSidePro
       ...origRet,
       props: {
         ...origProps,
-        lekkoConfigs,
+        ...lekkoConfigs,
       },
     };
   };
@@ -176,7 +178,7 @@ export function withLekkoStaticProps(getStaticPropsFn?: GetStaticProps): GetStat
       ...origRet,
       props: {
         ...origProps,
-        lekkoConfigs,
+        ...lekkoConfigs,
       },
     };
   };

@@ -1,6 +1,6 @@
 {
   "name": "@lekko/next-sdk",
-  "version": "0.3.0",
+  "version": "0.3.0-beta.2",
   "description": "Lekko Next.js SDK",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -43,8 +43,8 @@
   },
   "dependencies": {
     "@connectrpc/connect": "^1.4.0",
-    "@lekko/js-sdk": "^0.1.6 || >=0.1.6-beta.2",
-    "@lekko/webpack-loader": "^0.2.0 || >=0.2.0-beta.1",
+    "@lekko/js-sdk": "^0.1.6 || >=0.1.6-beta.3",
+    "@lekko/webpack-loader": "^0.2.0 || >=0.2.1-beta.1",
     "js-base64": "^3.7.7"
   },
   "devDependencies": {

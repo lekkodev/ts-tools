@@ -225,16 +225,36 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
 
     function addDebugLogs(ns: string, name: string, block: ts.Block): ts.Block {
       const statements: ts.Statement[] = [
-        factory.createExpressionStatement(
-          factory.createCallExpression(factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("log")), undefined, [
-            factory.createStringLiteral(`[lekko] Failed to evaluate ${ns}/${name}: `),
-            factory.createIdentifier(EXCEPTION_IDENTIFIER_NAME),
-          ]),
+        factory.createIfStatement(
+          factory.createPrefixUnaryExpression(
+            ts.SyntaxKind.ExclamationToken,
+            factory.createParenthesizedExpression(
+              factory.createBinaryExpression(
+                factory.createIdentifier(EXCEPTION_IDENTIFIER_NAME),
+                factory.createToken(ts.SyntaxKind.InstanceOfKeyword),
+                factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("ClientNotInitializedError")),
+              ),
+            ),
+          ),
+          factory.createBlock(
+            [
+              factory.createExpressionStatement(
+                factory.createCallExpression(
+                  factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("logError")),
+                  undefined,
+                  [factory.createStringLiteral(`[lekko] Failed to evaluate ${ns}/${name}: `), factory.createIdentifier(EXCEPTION_IDENTIFIER_NAME)],
+                ),
+              ),
+            ],
+            true,
+          ),
         ),
         factory.createExpressionStatement(
-          factory.createCallExpression(factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("log")), undefined, [
-            factory.createStringLiteral(`[lekko] Using in-code fallback for ${ns}/${name}.`),
-          ]),
+          factory.createCallExpression(
+            factory.createPropertyAccessExpression(factory.createIdentifier("lekko"), factory.createIdentifier("logInfo")),
+            undefined,
+            [factory.createStringLiteral(`[lekko] Using in-code fallback for ${ns}/${name}.`)],
+          ),
         ),
       ];
       statements.push(...block.statements);
