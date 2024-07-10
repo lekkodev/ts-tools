@@ -7,15 +7,7 @@ import { type TransformerExtras } from "ts-patch";
 import ts from "typescript";
 import { type ProtoFileBuilder, type LekkoConfigJSON, type LekkoTransformerOptions } from "./types";
 import { type CheckedFunctionDeclaration, LEKKO_FILENAME_REGEX, assertIsCheckedFunctionDeclaration, isLekkoConfigFile } from "./helpers";
-import {
-  handleInterfaceAsProto,
-  genProtoFile,
-  functionToConfigJSON,
-  genStarlark,
-  listConfigs,
-  removeConfig,
-  handleFunctionParamsAsProtos,
-} from "./ts-to-lekko";
+import { handleInterfaceAsProto, genProtoFile, functionToConfigJSON, genStarlark, listConfigs, removeConfig } from "./ts-to-lekko";
 import kebabCase from "lodash.kebabcase";
 import { LekkoGenError, LekkoParseError } from "./errors";
 import { readDotLekko } from "./dotlekko";
@@ -105,7 +97,6 @@ export function bisync(lekkoPath?: string, repoPath?: string) {
         // Apply changes to config repo
         const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
         configs.push(configJSON);
-        handleFunctionParamsAsProtos(checkedNode, checker, protoFileBuilder);
       } else if (tsInstance.isInterfaceDeclaration(node)) {
         handleInterfaceAsProto(node, checker, protoFileBuilder);
       }
