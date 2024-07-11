@@ -1,7 +1,7 @@
 "use client";
 
 import { type PropsWithChildren, createContext, useContext, useEffect, useMemo } from "react";
-import { type SyncClient, initAPIClientFromContents } from "@lekko/js-sdk";
+import { type SyncClient, initAPIClientFromContents, logError, logInfo } from "@lekko/js-sdk";
 import { type EncodedLekkoConfigs } from "./types";
 
 export type LekkoContext = Record<string, boolean | string | number>;
@@ -31,6 +31,7 @@ interface LekkoClientProviderProps extends PropsWithChildren {
    * See `getEncodedLekkoConfig` for a function to fetch this information.
    */
   configs?: EncodedLekkoConfigs | null;
+  fetchError?: string;
 }
 
 /**
@@ -41,13 +42,14 @@ interface LekkoClientProviderProps extends PropsWithChildren {
  *
  * The value for the `configs` prop can be fetched using `getEncodedLekkoConfigs`.
  */
-export function LekkoClientProvider({ configs, children }: LekkoClientProviderProps) {
+export function LekkoClientProvider({ configs, fetchError, children }: LekkoClientProviderProps) {
   const apiKey = process.env.NEXT_PUBLIC_LEKKO_API_KEY;
   const repositoryOwner = process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
   const repositoryName = process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
 
   const client = useMemo(() => {
     if (configs == null) {
+      logInfo(`[lekko] ${fetchError ?? ""} Remote lekkos are not available, in-code fallback will be used.`);
       return null;
     }
     try {
@@ -57,8 +59,8 @@ export function LekkoClientProvider({ configs, children }: LekkoClientProviderPr
         repositoryName: repositoryName ?? "",
       });
     } catch (e) {
-      console.warn(
-        `Failed to initialize Lekko client from hydrated data, defaulting to static fallback: ${(e as Error).message}`,
+      logError(
+        `[lekko] Failed to initialize Lekko client from hydrated data, defaulting to in-code fallback: ${(e as Error).message}`,
       );
       return null;
     }
@@ -69,7 +71,7 @@ export function LekkoClientProvider({ configs, children }: LekkoClientProviderPr
     if (apiKey !== undefined && repositoryOwner !== undefined && repositoryName !== undefined && client !== null) {
       // Client is actually initialized above, this just registers and sets up the event tracker
       client.initialize(false).catch(() => {
-        console.warn("Failed to register Lekko SDK client, evaluations will not be tracked");
+        logError("[lekko] Failed to register Lekko SDK client, evaluations will not be tracked");
       });
     }
   }, [client]);
