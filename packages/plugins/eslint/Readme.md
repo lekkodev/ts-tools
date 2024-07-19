@@ -18,12 +18,8 @@ import lekko from "@lekko/eslint-plugin";
 export default [
   {
     files: ["src/lekko/*.ts"],
-    plugins: {
-      lekko: lekko,
-    },
-    rules: {
-      "@lekko/limitations": "error",
-    },
+    plugins: { lekko: lekko },
+    rules: { "lekko/limitations": "error" },
   },
 ];
 ```
