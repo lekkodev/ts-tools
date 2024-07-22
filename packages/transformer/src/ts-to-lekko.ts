@@ -254,8 +254,21 @@ function expressionToProtoValue(expression: ts.Expression, namespace: string, pr
         // Relies on a proto message being defined that has the same name as used
         "@type": `type.googleapis.com/${namespace}.config.v1beta1.${protoType}`,
       };
+    case ts.SyntaxKind.PrefixUnaryExpression: {
+      const pue = expression as ts.PrefixUnaryExpression;
+      if (pue.operator === ts.SyntaxKind.MinusToken) {
+        const ret = expressionToProtoValue(pue.operand, namespace, protoType);
+        if (typeof ret.value !== "number") {
+          throw new LekkoParseError(`expected number operand, got ${typeof ret.value}`, pue.operand);
+        }
+        ret.value = -1 * ret.value;
+        return ret;
+      } else {
+        throw new LekkoParseError(`unsupported prefix operator: ${ts.SyntaxKind[pue.operator]}`, expression);
+      }
+    }
     default:
-      throw new LekkoParseError(`need to be able to handle: ${ts.SyntaxKind[expression.kind]}`, expression);
+      throw new LekkoParseError(`unsupported syntax: ${ts.SyntaxKind[expression.kind]}`, expression);
   }
 }
 
