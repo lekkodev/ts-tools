@@ -1,12 +1,10 @@
 {
   "name": "@lekko/ts-transformer",
-  "version": "0.2.3",
+  "version": "0.3.0-beta.1",
   "description": "TypeScript transformer for Lekko config definitions",
   "main": "dist/index.js",
   "bin": {
-    "ts-to-proto": "dist/ts-to-proto.js",
-    "lekko-repo-pull": "dist/pull.js",
-    "lekko-repo-sync": "dist/sync.js"
+    "lekko-sync": "dist/sync.js"
   },
   "devDependencies": {
     "@types/lodash.camelcase": "^4.3.9",
@@ -18,6 +16,8 @@
     "typescript": "^5.4.2"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^1.10.0",
+    "@bufbuild/protoc-gen-es": "^1.10.0",
     "@commander-js/extra-typings": "^12.0.1",
     "commander": "^12.0.0",
     "lodash.camelcase": "^4.3.0",
@@ -32,7 +32,7 @@
     "yaml": "^2.4.5"
   },
   "scripts": {
-    "build": "rm -rf dist/ && tsc",
+    "build": "rm -rf dist/ && tsc && cp -R assets/ dist/assets",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepare": "npm run build"
   },

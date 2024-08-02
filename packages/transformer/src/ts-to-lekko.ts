@@ -1,48 +1,48 @@
-import assert from "assert";
-import { spawnSync } from "child_process";
-import camelCase from "lodash.camelcase";
 import snakeCase from "lodash.snakecase";
-import upperFirst from "lodash.upperfirst";
-import fs from "node:fs";
-import path from "node:path";
-import ts, { type TypeChecker } from "typescript";
-import { LekkoGenError, LekkoParseError } from "./errors";
+import ts from "typescript";
+import { LekkoParseError } from "./errors";
+import type { JSONObject, JSONValue, SupportedExpressionName } from "./types";
+import { type CheckedFunctionDeclaration, isIntrinsicType } from "./helpers";
 import {
-  type ProtoFileBuilder,
-  type JSONObject,
-  type JSONValue,
-  type LekkoConfigJSON,
-  type LekkoConfigJSONRule,
-  type LekkoConfigJSONTree,
-  type LekkoConfigJSONValue,
-  type LekkoConfigType,
-  type LekkoComparisonOperator,
-  type LekkoLogicalOperator,
-  type SupportedExpressionName,
-  LEKKO_CLI_NOT_FOUND,
-} from "./types";
-import { type CheckedFunctionDeclaration, isIntrinsicType, LEKKO_FILENAME_REGEX } from "./helpers";
-import { checkConfigFunctionDeclaration } from "./transformer";
-import { FieldDescriptorProto, FileDescriptorProto, DescriptorProto } from "@bufbuild/protobuf";
+  Any as GoogleAny,
+  FieldDescriptorProto,
+  FileDescriptorProto,
+  DescriptorProto,
+  FieldDescriptorProto_Type,
+  FieldDescriptorProto_Label,
+  type FileDescriptorSet,
+  BoolValue,
+  type Message,
+  type IMessageTypeRegistry,
+  StringValue,
+  DoubleValue,
+  type MessageType,
+  type PartialMessage,
+  type AnyMessage,
+  Value as DynamicValue,
+  ListValue,
+} from "@bufbuild/protobuf";
+import { Any, Constraint, Feature, FeatureType } from "./gen/lekko/feature/v1beta1/feature_pb";
+import * as rules from "./gen/lekko/rules/v1beta3/rules_pb";
 
-const COMPARISON_TOKEN_TO_OPERATOR: Partial<Record<ts.SyntaxKind, LekkoComparisonOperator>> = {
-  [ts.SyntaxKind.EqualsEqualsEqualsToken]: "COMPARISON_OPERATOR_EQUALS",
-  [ts.SyntaxKind.LessThanToken]: "COMPARISON_OPERATOR_LESS_THAN",
-  [ts.SyntaxKind.LessThanEqualsToken]: "COMPARISON_OPERATOR_LESS_THAN_OR_EQUALS",
-  [ts.SyntaxKind.GreaterThanToken]: "COMPARISON_OPERATOR_GREATER_THAN",
-  [ts.SyntaxKind.GreaterThanEqualsToken]: "COMPARISON_OPERATOR_GREATER_THAN_OR_EQUALS",
-  [ts.SyntaxKind.ExclamationEqualsEqualsToken]: "COMPARISON_OPERATOR_NOT_EQUALS",
+const COMPARISON_TOKEN_TO_OPERATOR: Partial<Record<ts.SyntaxKind, rules.ComparisonOperator>> = {
+  [ts.SyntaxKind.EqualsEqualsEqualsToken]: rules.ComparisonOperator.EQUALS,
+  [ts.SyntaxKind.LessThanToken]: rules.ComparisonOperator.LESS_THAN,
+  [ts.SyntaxKind.LessThanEqualsToken]: rules.ComparisonOperator.LESS_THAN_OR_EQUALS,
+  [ts.SyntaxKind.GreaterThanToken]: rules.ComparisonOperator.GREATER_THAN,
+  [ts.SyntaxKind.GreaterThanEqualsToken]: rules.ComparisonOperator.GREATER_THAN_OR_EQUALS,
+  [ts.SyntaxKind.ExclamationEqualsEqualsToken]: rules.ComparisonOperator.NOT_EQUALS,
 };
 
-const LOGICAL_TOKEN_TO_OPERATOR: Partial<Record<ts.SyntaxKind, LekkoLogicalOperator>> = {
-  [ts.SyntaxKind.AmpersandAmpersandToken]: "LOGICAL_OPERATOR_AND",
-  [ts.SyntaxKind.BarBarToken]: "LOGICAL_OPERATOR_OR",
+const LOGICAL_TOKEN_TO_OPERATOR: Partial<Record<ts.SyntaxKind, rules.LogicalOperator>> = {
+  [ts.SyntaxKind.AmpersandAmpersandToken]: rules.LogicalOperator.AND,
+  [ts.SyntaxKind.BarBarToken]: rules.LogicalOperator.OR,
 };
 
-const EXPRESSION_NAME_TO_OPERATOR: Partial<Record<SupportedExpressionName, LekkoComparisonOperator>> = {
-  includes: "COMPARISON_OPERATOR_CONTAINS",
-  startsWith: "COMPARISON_OPERATOR_STARTS_WITH",
-  endsWith: "COMPARISON_OPERATOR_ENDS_WITH",
+const EXPRESSION_NAME_TO_OPERATOR: Partial<Record<SupportedExpressionName, rules.ComparisonOperator>> = {
+  includes: rules.ComparisonOperator.CONTAINS,
+  startsWith: rules.ComparisonOperator.STARTS_WITH,
+  endsWith: rules.ComparisonOperator.ENDS_WITH,
 };
 
 function exprToContextKey(expr: ts.Expression): string {
@@ -56,22 +56,31 @@ function exprToContextKey(expr: ts.Expression): string {
   }
 }
 
-function matchBooleanIdentifier(checker: ts.TypeChecker, ident: ts.Identifier, value: boolean): LekkoConfigJSONRule | undefined {
+function matchBooleanIdentifier(checker: ts.TypeChecker, ident: ts.Identifier, value: boolean): rules.Rule | undefined {
   const identType = checker.getTypeAtLocation(ident);
   if (identType.flags & ts.TypeFlags.Boolean) {
-    return {
-      atom: {
-        contextKey: exprToContextKey(ident),
-        comparisonOperator: "COMPARISON_OPERATOR_EQUALS",
-        comparisonValue: value,
+    return new rules.Rule({
+      rule: {
+        case: "atom",
+        value: new rules.Atom({
+          contextKey: exprToContextKey(ident),
+          comparisonOperator: rules.ComparisonOperator.EQUALS,
+          comparisonValue: new DynamicValue({
+            kind: {
+              case: "boolValue",
+              value,
+            },
+          }),
+        }),
       },
-    };
+    });
   }
   return undefined;
 }
 
-function expressionToRule(checker: ts.TypeChecker, expression: ts.Expression): LekkoConfigJSONRule {
+function expressionToRule(checker: ts.TypeChecker, expression: ts.Expression): rules.Rule {
   switch (expression.kind) {
+    // Handle boolean literal condition (e.g. if (true))
     case ts.SyntaxKind.Identifier: {
       const rule = matchBooleanIdentifier(checker, expression as ts.Identifier, true);
       if (rule) {
@@ -88,9 +97,12 @@ function expressionToRule(checker: ts.TypeChecker, expression: ts.Expression): L
             return rule;
           }
         } else {
-          return {
-            not: expressionToRule(checker, prefixExpr.operand),
-          };
+          return new rules.Rule({
+            rule: {
+              case: "not",
+              value: expressionToRule(checker, prefixExpr.operand),
+            },
+          });
         }
       }
       throw new LekkoParseError("Unsupported PrefixUnaryExpression", expression);
@@ -100,41 +112,70 @@ function expressionToRule(checker: ts.TypeChecker, expression: ts.Expression): L
       const tokenKind = binaryExpr.operatorToken.kind;
 
       if (tokenKind === ts.SyntaxKind.ExclamationEqualsEqualsToken && binaryExpr.right.getText() === "undefined") {
-        return {
-          atom: {
-            contextKey: exprToContextKey(binaryExpr.left),
-            comparisonOperator: "COMPARISON_OPERATOR_PRESENT",
+        return new rules.Rule({
+          rule: {
+            case: "atom",
+            value: new rules.Atom({
+              contextKey: exprToContextKey(binaryExpr.left),
+              comparisonOperator: rules.ComparisonOperator.PRESENT,
+            }),
           },
-        };
+        });
       } else if (tokenKind in COMPARISON_TOKEN_TO_OPERATOR) {
-        return {
-          atom: {
-            contextKey: exprToContextKey(binaryExpr.left),
-            comparisonValue: expressionToJsonValue(binaryExpr.right) as boolean | string | number,
-            comparisonOperator: COMPARISON_TOKEN_TO_OPERATOR[tokenKind]!,
+        const value = expressionToJsonValue(binaryExpr.right);
+        let comparisonValue: DynamicValue | undefined;
+        switch (typeof value) {
+          case "boolean": {
+            comparisonValue = new DynamicValue({ kind: { case: "boolValue", value } });
+            break;
+          }
+          case "string": {
+            comparisonValue = new DynamicValue({ kind: { case: "stringValue", value } });
+            break;
+          }
+          case "number": {
+            comparisonValue = new DynamicValue({ kind: { case: "numberValue", value } });
+            break;
+          }
+          default: {
+            throw new LekkoParseError(`Unexpected type ${typeof value} for comparison value`, binaryExpr.right);
+          }
+        }
+        return new rules.Rule({
+          rule: {
+            case: "atom",
+            value: new rules.Atom({
+              contextKey: exprToContextKey(binaryExpr.left),
+              comparisonValue,
+              comparisonOperator: COMPARISON_TOKEN_TO_OPERATOR[tokenKind]!,
+            }),
           },
-        };
+        });
       } else if (tokenKind in LOGICAL_TOKEN_TO_OPERATOR) {
-        let rules: LekkoConfigJSONRule[] = [];
+        let children: rules.Rule[] = [];
         const left = expressionToRule(checker, binaryExpr.left);
-        if ("logicalExpression" in left && left.logicalExpression.logicalOperator === LOGICAL_TOKEN_TO_OPERATOR[tokenKind]) {
-          rules = rules.concat(left.logicalExpression.rules);
+        // If possible, flatten to n-ary rather than only nesting
+        if (left.rule.case === "logicalExpression" && left.rule.value.logicalOperator === LOGICAL_TOKEN_TO_OPERATOR[tokenKind]) {
+          children = children.concat(left.rule.value.rules);
         } else {
-          rules.push(left);
+          children.push(left);
         }
         const right = expressionToRule(checker, binaryExpr.right);
-        if ("logicalExpression" in right && right.logicalExpression.logicalOperator === LOGICAL_TOKEN_TO_OPERATOR[tokenKind]) {
-          rules = rules.concat(right.logicalExpression.rules);
+        if (right.rule.case === "logicalExpression" && right.rule.value.logicalOperator === LOGICAL_TOKEN_TO_OPERATOR[tokenKind]) {
+          children = children.concat(right.rule.value.rules);
         } else {
-          rules.push(right);
+          children.push(right);
         }
 
-        return {
-          logicalExpression: {
-            rules,
-            logicalOperator: LOGICAL_TOKEN_TO_OPERATOR[tokenKind]!,
+        return new rules.Rule({
+          rule: {
+            case: "logicalExpression",
+            value: new rules.LogicalExpression({
+              rules: children,
+              logicalOperator: LOGICAL_TOKEN_TO_OPERATOR[tokenKind],
+            }),
           },
-        };
+        });
       } else {
         throw new LekkoParseError(`Operator ${ts.SyntaxKind[binaryExpr.operatorToken.kind]} is currently not supported`, binaryExpr.operatorToken);
       }
@@ -150,140 +191,279 @@ function expressionToRule(checker: ts.TypeChecker, expression: ts.Expression): L
       if (ts.isPropertyAccessExpression(propertyAccessExpr)) {
         const expressionName = propertyAccessExpr.name.text as SupportedExpressionName;
 
-        if (callExpr.arguments.length > 1) {
-          throw new LekkoParseError(
-            `Call expression ${propertyAccessExpr.getText()} with more than one argument is currently not supported`,
-            propertyAccessExpr,
-          );
+        if (callExpr.arguments.length !== 1) {
+          throw new LekkoParseError("Only one argument supported for call expression", callExpr);
         }
 
+        // e.g. [1, 2, 3].includes(ctxKey)
         if (expressionName === "includes" && ts.isArrayLiteralExpression(propertyAccessExpr.expression)) {
           const contextKey = exprToContextKey(callExpr.arguments[0]);
-          const arrayElements = processArrayElements(propertyAccessExpr.expression.elements);
 
-          return {
-            atom: {
-              contextKey,
-              comparisonValue: arrayElements,
-              comparisonOperator: "COMPARISON_OPERATOR_CONTAINED_WITHIN",
+          return new rules.Rule({
+            rule: {
+              case: "atom",
+              value: new rules.Atom({
+                contextKey,
+                comparisonValue: expressionToDynamicValue(propertyAccessExpr.expression),
+                comparisonOperator: rules.ComparisonOperator.CONTAINED_WITHIN,
+              }),
             },
-          };
+          });
         }
 
         const comparisonOperator = EXPRESSION_NAME_TO_OPERATOR[expressionName];
-
+        const callArg = callExpr.arguments[0];
         if (comparisonOperator !== undefined) {
-          return {
-            atom: {
-              contextKey: exprToContextKey(propertyAccessExpr.expression),
-              comparisonValue: expressionToJsonValue(callExpr.arguments[0]) as string | number | boolean,
-              comparisonOperator: comparisonOperator,
+          return new rules.Rule({
+            rule: {
+              case: "atom",
+              value: new rules.Atom({
+                contextKey: exprToContextKey(propertyAccessExpr.expression),
+                comparisonValue: expressionToDynamicValue(callArg),
+                comparisonOperator,
+              }),
             },
-          };
+          });
         }
       }
       throw new LekkoParseError(`Call expression ${propertyAccessExpr.getText()} is currently not supported`, propertyAccessExpr);
     }
     // TODO other literal types
     default: {
-      throw new LekkoParseError(`need to be able to handle: ${ts.SyntaxKind[expression.kind]}`, expression);
+      throw new LekkoParseError(`Unsupported syntax kind ${ts.SyntaxKind[expression.kind]}`, expression);
     }
   }
 }
 
-function ifStatementToRule(checker: ts.TypeChecker, ifStatement: ts.IfStatement, namespace: string, returnType: string) {
+/**
+ * Translates an if statement to a list of constraints.
+ * In TS, if statemenets are structured recursively where an else statement might not exist, be a regular block, or be another if statement (i.e. else if).
+ */
+function ifStatementToConstraints(
+  checker: ts.TypeChecker,
+  ifStatement: ts.IfStatement,
+  namespace: string,
+  returnType: string,
+  typeRegistry: IMessageTypeRegistry,
+): Constraint[] {
   const block = ifStatement.thenStatement as ts.Block;
-  if (block.statements.length != 1) {
-    throw new LekkoParseError(`Must only contain return statement: ${block.getFullText()}`, block);
+  // TODO: handle nested if statements here
+  if (block.statements.length !== 1 || block.statements[0].kind !== ts.SyntaxKind.ReturnStatement) {
+    throw new LekkoParseError("Then statement must only contain return statement", block);
   }
+
+  const [value, valueNew] = returnStatementToValue(block.statements[0] as ts.ReturnStatement, namespace, returnType, typeRegistry);
   const ret = [
-    {
-      rule: expressionToRule(checker, ifStatement.expression),
-      value: returnStatementToValue(block.statements[0] as ts.ReturnStatement, namespace, returnType),
-    },
+    new Constraint({
+      ruleAstNew: expressionToRule(checker, ifStatement.expression),
+      value,
+      valueNew,
+      // TODO: handle if comments here
+    }),
   ];
 
-  if (ifStatement.elseStatement) {
+  if (ifStatement.elseStatement !== undefined) {
     if (ifStatement.elseStatement.kind === ts.SyntaxKind.IfStatement) {
-      ret.push(...ifStatementToRule(checker, ifStatement.elseStatement as ts.IfStatement, namespace, returnType));
+      ret.push(...ifStatementToConstraints(checker, ifStatement.elseStatement as ts.IfStatement, namespace, returnType, typeRegistry));
+    } else if (ifStatement.elseStatement.kind === ts.SyntaxKind.Block) {
+      throw new LekkoParseError("Unnecessary else statement", ifStatement.elseStatement);
     } else {
-      throw new LekkoParseError(`invalid else statement: ${block.getFullText()}`, block);
+      throw new LekkoParseError(`Invalid else statement kind ${ts.SyntaxKind[ifStatement.elseStatement.kind]}`, ifStatement.elseStatement);
     }
   }
 
   return ret;
 }
 
-function returnStatementToValue(returnNode: ts.ReturnStatement, namespace: string, returnType: string): LekkoConfigJSONValue {
+/**
+ * Returns both Google's Any and Lekko's Any representations.
+ */
+function returnStatementToValue(returnNode: ts.ReturnStatement, namespace: string, returnType: string, typeRegistry: IMessageTypeRegistry): [GoogleAny, Any] {
   const expression = returnNode.expression;
-  assert(expression);
-  return expressionToProtoValue(expression, namespace, returnType);
+  if (expression === undefined) {
+    throw new LekkoParseError("Missing expression for return statement", returnNode);
+  }
+  return expressionToProtoValue(expression, namespace, returnType, typeRegistry);
 }
 
-// HACK: Essential eval(), it's an easy way to handle string literals, etc.
 function expressionToJsonValue(expression: ts.Expression): JSONValue {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-implied-eval
-  return Function(`return ${expression.getFullText().trim()}`)();
+  if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
+    return expression.text;
+  } else if (expression.kind === ts.SyntaxKind.FalseKeyword) {
+    return false;
+  } else if (expression.kind === ts.SyntaxKind.TrueKeyword) {
+    return true;
+  } else if (ts.isNumericLiteral(expression)) {
+    return new Number(expression.text).valueOf();
+  } else if (ts.isPrefixUnaryExpression(expression) && expression.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(expression.operand)) {
+    return -1 * new Number(expression.operand.text).valueOf();
+  } else if (ts.isArrayLiteralExpression(expression)) {
+    if (expression.elements.length === 0) {
+      return [];
+    }
+    const ret = [];
+    // For convenience, add check to make sure array elements have the same type here
+    // We don't have any places where we allow multi-type arrays
+    // TODO: Revisit once support for arrays of objects is needed
+    for (const elem of expression.elements) {
+      const value = expressionToJsonValue(elem);
+      if (ret.length >= 1) {
+        if (typeof ret[ret.length - 1] !== typeof value) {
+          throw new LekkoParseError("Array elements must have the same type", expression);
+        }
+      }
+      ret.push(value);
+    }
+    return ret;
+  } else if (ts.isObjectLiteralExpression(expression)) {
+    return expression.properties.reduce((agg, prop) => {
+      if (!ts.isPropertyAssignment(prop)) {
+        throw new LekkoParseError(`Only property assignments are supported, got ${ts.SyntaxKind[prop.kind]}`, prop);
+      }
+      if (prop.name === undefined || !ts.isIdentifier(prop.name)) {
+        throw new LekkoParseError("Unsupported syntax for object literal key", prop);
+      }
+      agg[prop.name.text] = expressionToJsonValue(prop.initializer);
+      return agg;
+    }, {} as JSONObject);
+  }
+  throw new LekkoParseError(`Unsupported value expression ${ts.SyntaxKind[expression.kind]}`, expression);
 }
 
-function expressionToProtoValue(expression: ts.Expression, namespace: string, protoType?: string): LekkoConfigJSONValue {
+function getAnyFromGoogleAny(ga: GoogleAny): Any {
+  return new Any({
+    typeUrl: ga.typeUrl,
+    value: ga.value,
+  });
+}
+
+/**
+ * Returns both Google's Any and Lekko's Any representations.
+ */
+function expressionToProtoValue(expression: ts.Expression, namespace: string, protoType: string, typeRegistry: IMessageTypeRegistry): [GoogleAny, Any] {
+  let value: Message;
   switch (expression.kind) {
-    case ts.SyntaxKind.FalseKeyword:
-      return {
-        "@type": "type.googleapis.com/google.protobuf.BoolValue",
-        value: false,
-      };
-    case ts.SyntaxKind.TrueKeyword:
-      return {
-        "@type": "type.googleapis.com/google.protobuf.BoolValue",
-        value: true,
-      };
-    case ts.SyntaxKind.StringLiteral:
-      return {
-        "@type": "type.googleapis.com/google.protobuf.StringValue",
-        value: expressionToJsonValue(expression) as string,
-      };
-    case ts.SyntaxKind.NumericLiteral:
-      return {
-        "@type": "type.googleapis.com/google.protobuf.DoubleValue",
-        value: new Number(expression.getText()).valueOf(),
-      };
-    case ts.SyntaxKind.ObjectLiteralExpression:
-      return {
-        ...(expressionToJsonValue(expression) as JSONObject),
-        // Relies on a proto message being defined that has the same name as used
-        "@type": `type.googleapis.com/${namespace}.config.v1beta1.${protoType}`,
-      };
+    case ts.SyntaxKind.FalseKeyword: {
+      value = new BoolValue({ value: false });
+      break;
+    }
+    case ts.SyntaxKind.TrueKeyword: {
+      value = new BoolValue({ value: true });
+      break;
+    }
+    case ts.SyntaxKind.StringLiteral: {
+      value = new StringValue({ value: expressionToJsonValue(expression) as string });
+      break;
+    }
+    case ts.SyntaxKind.NumericLiteral: {
+      value = new DoubleValue({ value: new Number(expression.getText()).valueOf() });
+      break;
+    }
+    case ts.SyntaxKind.ObjectLiteralExpression: {
+      value = objectLiteralExpressionToMessage(expression as ts.ObjectLiteralExpression, namespace, protoType, typeRegistry);
+      break;
+    }
     case ts.SyntaxKind.PrefixUnaryExpression: {
       const pue = expression as ts.PrefixUnaryExpression;
+      // Handle negative numbers like -1
       if (pue.operator === ts.SyntaxKind.MinusToken) {
-        const ret = expressionToProtoValue(pue.operand, namespace, protoType);
-        if (typeof ret.value !== "number") {
-          throw new LekkoParseError(`expected number operand, got ${typeof ret.value}`, pue.operand);
+        const [gAny] = expressionToProtoValue(pue.operand, namespace, protoType, typeRegistry);
+        if (!gAny.is(DoubleValue)) {
+          throw new LekkoParseError(`unsupported operand for minus prefix`, pue.operand);
         }
-        ret.value = -1 * ret.value;
-        return ret;
+        const dv = new DoubleValue();
+        gAny.unpackTo(dv);
+        dv.value = dv.value * -1;
+        value = dv;
       } else {
         throw new LekkoParseError(`unsupported prefix operator: ${ts.SyntaxKind[pue.operator]}`, expression);
       }
+      break;
     }
     default:
       throw new LekkoParseError(`unsupported syntax: ${ts.SyntaxKind[expression.kind]}`, expression);
   }
+  const gAny = GoogleAny.pack(value);
+  return [gAny, getAnyFromGoogleAny(gAny)];
 }
 
-function getLekkoType(node: ts.Node, returnType: ts.Type, checker: ts.TypeChecker): LekkoConfigType {
+/**
+ * Translates an object literal to a Message.
+ * Assumes the type of the Message is <namespace>.config.v1beta1.<typeName> which is a reasonable default for now.
+ * Currently does not support nested types or type references.
+ */
+function objectLiteralExpressionToMessage(
+  expression: ts.ObjectLiteralExpression,
+  namespace: string,
+  typeName: string,
+  typeRegistry: IMessageTypeRegistry,
+): Message {
+  let messageType: MessageType | undefined;
+  try {
+    messageType = typeRegistry.findMessage(`${namespace}.config.v1beta1.${typeName}`);
+  } catch (e) {
+    if (e instanceof Error) {
+      throw new LekkoParseError(`Failed to look up type: ${e.message}`, expression);
+    }
+  }
+  if (messageType === undefined) {
+    throw new LekkoParseError(`Type ${typeName} not found in registry`, expression);
+  }
+  // TODO: Actually parse object's fields instead of eval()-ing
+  try {
+    return new messageType(expressionToJsonValue(expression) as PartialMessage<AnyMessage>);
+  } catch (e) {
+    if (e instanceof Error) {
+      throw new LekkoParseError(`Failed to construct object of type ${typeName}: ${e.message}`, expression);
+    } else {
+      throw e;
+    }
+  }
+}
+
+/**
+ * Translates an expression to a google.protobuf.Value.
+ */
+function expressionToDynamicValue(expr: ts.Expression): DynamicValue {
+  if (ts.isArrayLiteralExpression(expr)) {
+    return new DynamicValue({
+      kind: {
+        case: "listValue",
+        value: new ListValue({
+          values: expr.elements.map(expressionToDynamicValue),
+        }),
+      },
+    });
+  }
+  const value = expressionToJsonValue(expr);
+  switch (typeof value) {
+    case "boolean": {
+      return new DynamicValue({ kind: { case: "boolValue", value } });
+    }
+    case "string": {
+      return new DynamicValue({ kind: { case: "stringValue", value } });
+    }
+    case "number": {
+      return new DynamicValue({ kind: { case: "numberValue", value } });
+    }
+    default: {
+      throw new LekkoParseError(`Unexpected type ${typeof value} for parsed expression`, expr);
+    }
+  }
+}
+
+function getLekkoType(node: ts.Node, returnType: ts.Type, checker: ts.TypeChecker): FeatureType {
   if (returnType.flags & ts.TypeFlags.Boolean) {
-    return "FEATURE_TYPE_BOOL";
+    return FeatureType.BOOL;
   }
   if (returnType.flags & ts.TypeFlags.Number) {
-    return "FEATURE_TYPE_FLOAT";
+    return FeatureType.FLOAT;
   }
   if (returnType.flags & ts.TypeFlags.String) {
-    return "FEATURE_TYPE_STRING";
+    return FeatureType.STRING;
   }
   if (returnType.flags & ts.TypeFlags.Object) {
-    return "FEATURE_TYPE_PROTO";
+    return FeatureType.PROTO;
   }
   throw new LekkoParseError(`Unsupported TypeScript type: ${returnType.flags} - ${checker.typeToString(returnType)}`, node);
 }
@@ -298,22 +478,20 @@ function getDescription(node: ts.FunctionDeclaration): string | undefined {
   }
   // If the comment has jsdoc links, it will be a node array composed of multiple sections.
   // It's JS-specific, so for now let's not support it.
-  throw new Error("JSDoc links are not supported in Lekko config descriptions");
+  throw new LekkoParseError("JSDoc links are not supported in lekko descriptions", node);
 }
 
 /**
- * Creates a JSON representation of a Lekko config from a function declaration.
+ * Translates a lekko function declaration into its canonical proto Feature represenation.
  */
-export function functionToConfigJSON(
+export function functionToProto(
   node: CheckedFunctionDeclaration,
   checker: ts.TypeChecker,
   namespace: string,
   configKey: string,
   returnType: ts.Type,
-): LekkoConfigJSON {
-  // TODO support nested interfaces
-  const configType = getLekkoType(node, returnType, checker);
-
+  typeRegistry: IMessageTypeRegistry,
+): Feature {
   let valueType: string;
   if (isIntrinsicType(returnType)) {
     // This is how we check for boolean/number/string
@@ -321,523 +499,124 @@ export function functionToConfigJSON(
   } else {
     valueType = checker.typeToString(returnType, undefined, ts.TypeFormatFlags.None);
   }
-  assert(node.body);
 
-  let configTreeDefault: LekkoConfigJSONTree<typeof configType>["default"] | undefined;
-  let configTreeConstraints: LekkoConfigJSONTree<typeof configType>["constraints"] | undefined;
+  let treeDefault: GoogleAny | undefined;
+  let treeDefaultNew: Any | undefined;
+  let treeConstraints: Constraint[] | undefined;
 
   for (const [_, statement] of node.body.statements.entries()) {
     switch (statement.kind) {
       case ts.SyntaxKind.IfStatement: {
-        const ruleValPairs = ifStatementToRule(checker, statement as ts.IfStatement, namespace, valueType);
-        if (configTreeConstraints === undefined) {
-          configTreeConstraints = [];
-        }
-        for (const { value, rule } of ruleValPairs) {
-          configTreeConstraints.push({
-            value: value,
-            ruleAstNew: rule,
-          });
-        }
+        treeConstraints = ifStatementToConstraints(checker, statement as ts.IfStatement, namespace, valueType, typeRegistry);
         break;
       }
       case ts.SyntaxKind.ReturnStatement: {
-        // TODO check that it's only 3
-        // TODO refactor for all return types
-        configTreeDefault = returnStatementToValue(statement as ts.ReturnStatement, namespace, valueType);
+        [treeDefault, treeDefaultNew] = returnStatementToValue(statement as ts.ReturnStatement, namespace, valueType, typeRegistry);
         break;
       }
       default: {
-        throw new LekkoParseError(`Unable to handle: ${ts.SyntaxKind[statement.kind]}`, statement);
+        throw new LekkoParseError(`Unexpected statement kind ${ts.SyntaxKind[statement.kind]}, only if and return statements are supported`, statement);
       }
     }
   }
 
-  assert(configTreeDefault, "Missing default value, check for return statement");
+  if (treeDefault === undefined) {
+    throw new LekkoParseError("Missing default return value", node.body);
+  }
 
-  const config: LekkoConfigJSON<typeof configType> = {
+  return new Feature({
     key: configKey,
     description: getDescription(node) ?? "",
     tree: {
-      default: configTreeDefault,
-      constraints: configTreeConstraints,
+      default: treeDefault,
+      defaultNew: treeDefaultNew,
+      constraints: treeConstraints,
     },
-    type: configType,
-  };
-  return config;
-}
-
-function functionToArgsDescriptor(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, path: string): DescriptorProto | undefined {
-  if (node.parameters.length === 0) {
-    return undefined;
-  }
-  const param = node.parameters[0];
-  const propertyType = checker.getTypeAtLocation(param.type as ts.TypeReferenceNode);
-  const symbol = propertyType.getSymbol();
-  assert(symbol);
-  return symbolToDescriptorProto(
-    symbol,
-    checker,
-    `${new ProtoName(node.name.text.slice(3)).messageName()}Args`,
-    `${path}.${new ProtoName(node.name.text).messageName()}`,
-  );
-}
-
-/** Mutates the passed builder */
-export function handleFunctionParamsAsProtos(node: CheckedFunctionDeclaration, checker: ts.TypeChecker, builder: ProtoFileBuilder) {
-  if (node.parameters.length === 0) {
-    return;
-  }
-  const param = node.parameters[0];
-  const propertyType = checker.getTypeAtLocation(param.type as ts.TypeReferenceNode);
-  const symbol = propertyType.getSymbol();
-  assert(symbol);
-  const name = `${new ProtoName(node.name.text.slice(3)).messageName()}Args`;
-  builder.messages[name] ||= [];
-  builder.messages[name].push(...symbolToFields(symbol, checker, name, builder));
+    type: getLekkoType(node, returnType, checker),
+  });
 }
 
 /**
- * Generates starlark files in local config repo based on function declarations.
- * Depends on the Lekko CLI.
+ * Adds the message descriptor to the corresponding namespace file descriptor in the FDS.
  */
-export function genStarlark(repoPath: string, namespace: string, config: LekkoConfigJSON) {
-  const configJSON = JSON.stringify(config, null, 2);
-  const jsonDir = path.join(repoPath, namespace, "gen", "json");
-  fs.mkdirSync(jsonDir, { recursive: true });
-  fs.writeFileSync(path.join(jsonDir, `${config.key}.json`), configJSON);
-  const spawnReturns = spawnSync("lekko", ["gen", "starlark", "-n", namespace, "-c", config.key], {
-    encoding: "utf-8",
-    cwd: repoPath,
-  });
-  if (spawnReturns.error !== undefined || spawnReturns.status !== 0) {
-    throw new LekkoGenError(`Failed to generate starlark for ${config.key}: ${spawnReturns.stdout}${spawnReturns.stderr}`);
+export function registerMessage(fds: FileDescriptorSet, namespace: string, md: DescriptorProto) {
+  const filePath = `${namespace}/config/v1beta1/${namespace}.proto`;
+  // Try to find existing file descriptor
+  let fd = fds.file.find((fd) => fd.name === filePath);
+  if (fd === undefined) {
+    // Create new if necessary
+    fd = new FileDescriptorProto({
+      name: filePath,
+      package: `${namespace}.config.v1beta1`,
+    });
+    fds.file.push(fd);
   }
-}
-
-/**
- * Mutates the proto builder based on the interface declaration node.
- */
-export function handleInterfaceAsProto(node: ts.InterfaceDeclaration, checker: TypeChecker, builder: ProtoFileBuilder) {
-  const name = node.name.getText();
-  const fields = node.members.map((member, idx) => {
-    if (ts.isPropertySignature(member)) {
-      const propertyName = snakeCase(member.name.getText());
-      assert(member.type);
-      const propertyType = checker.getTypeAtLocation(member.type);
-      const protoType = getProtoTypeFromTypeScriptType(checker, propertyType, propertyName, name, builder);
-      return `${protoType} ${propertyName} = ${idx + 1};`;
-    } else {
-      throw new LekkoParseError(`Unsupported member type: ${ts.SyntaxKind[member.kind]} - ${member.getFullText()}`, member);
-    }
-  });
-  builder.messages[name] = fields;
-}
-
-function symbolToFields(node: ts.Symbol, typeChecker: ts.TypeChecker, name: string, builder: ProtoFileBuilder) {
-  if (node.members == undefined) {
-    throw new Error(`Invalid symbol ${node.name}`);
-  }
-  return Array.from(node.members).map(([propertyName, symbol], idx) => {
-    const propertyType = typeChecker.getTypeOfSymbol(symbol);
-    const fieldName = snakeCase(propertyName.toString());
-    const protoType = getProtoTypeFromTypeScriptType(typeChecker, propertyType, fieldName, name, builder);
-    return `${protoType} ${fieldName} = ${idx + 1};`;
-  });
-}
-
-function getProtoTypeFromTypeScriptType(checker: TypeChecker, type: ts.Type, propertyName: string, name: string, builder: ProtoFileBuilder): string {
-  if (type.flags & ts.TypeFlags.String) {
-    return "string";
-  }
-  if (type.flags & ts.TypeFlags.Number) {
-    return "double";
-  }
-  // TODO: Int fields
-  if (type.flags & ts.TypeFlags.Boolean) {
-    return "bool";
-  }
-  if (type.flags & ts.TypeFlags.Union) {
-    const unionType: ts.UnionType = type as ts.UnionType;
-    // If optional or undefined and another type, handle - proto fields are all optional
-    // But specifically for optional booleans, there are 3 types - true, false, and undefined
-    if (unionType.types.length === 3) {
-      if (
-        unionType.types.some((t) => isIntrinsicType(t) && t.intrinsicName === "false") &&
-        unionType.types.some((t) => isIntrinsicType(t) && t.intrinsicName === "true") &&
-        unionType.types.some((t) => t.flags & ts.TypeFlags.Undefined)
-      ) {
-        return "bool";
-      } else {
-        throw new Error("Union types are currently not fully supported.");
-      }
-    } else if (unionType.types.length === 2) {
-      let definedType: ts.Type;
-      const [typeA, typeB] = unionType.types;
-      if (typeA.flags & ts.TypeFlags.Undefined) {
-        definedType = typeB;
-      } else if (typeB.flags & ts.TypeFlags.Undefined) {
-        definedType = typeA;
-      } else {
-        throw new Error("Union types are currently not fully supported.");
-      }
-      return getProtoTypeFromTypeScriptType(checker, definedType, propertyName, name, builder);
-    }
-    // If all the types are ObjectLiteral - do we want to use that type, or make an enum?  Do we want to do oneOf for the others?
-    throw new Error("Union types are currently not fully supported.");
-  }
-  if (type.flags & ts.TypeFlags.Object) {
-    // Need to turn nested objects in interface to protos as well
-    const camelCasePropertyName = camelCase(propertyName);
-    const childName = name + camelCasePropertyName.charAt(0).toUpperCase() + camelCasePropertyName.slice(1);
-    const symbol = type.getSymbol();
-    assert(symbol);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-    if (symbol.escapedName === "Array") {
-      const typeArgs = (type as ts.TypeReference).typeArguments;
-      assert(typeArgs);
-      const innerType = typeArgs[0];
-      return "repeated " + getProtoTypeFromTypeScriptType(checker, innerType, propertyName, name, builder);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-    } else if (symbol.escapedName === "Date") {
-      return "int32"; // TODO dates are stupid
-    } else {
-      const symbol = type.getSymbol();
-      assert(symbol);
-      builder.messages[childName] ||= [];
-      builder.messages[childName].push(...symbolToFields(symbol, checker, childName, builder));
-    }
-    return childName;
-  }
-  throw new Error(`Unsupported TypeScript type: ${type.flags} - ${checker.typeToString(type)}`);
-}
-
-/**
- * Check for presence of lekko and buf CLIs. Also creates a default repo for now.
- * TODO: Add version range checks.
- */
-export function checkCLIDeps() {
-  const lekkoCmd = spawnSync("lekko", ["--version"]);
-  const bufCmd = spawnSync("buf", ["--version"]);
-  if (lekkoCmd.error !== undefined || lekkoCmd.status !== 0 || bufCmd.error !== undefined || bufCmd.status !== 0) {
-    throw new Error(LEKKO_CLI_NOT_FOUND);
-  }
-  const defaultInitCmd = spawnSync("lekko", ["repo", "init-default"], {
-    encoding: "utf-8",
-  });
-  if (defaultInitCmd.error !== undefined || defaultInitCmd.status !== 0) {
-    throw new Error("Failed to initialize default Lekko repo");
-  }
-}
-
-/**
- * Returns list of config names under specified namespace in the config repo
- */
-export function listConfigs(repoPath: string, namespace: string) {
-  const listCmd = spawnSync("lekko", ["config", "list", "-n", namespace], {
-    encoding: "utf-8",
-    cwd: repoPath,
-  });
-  if (listCmd.error !== undefined || listCmd.status !== 0) {
-    throw new Error(`Failed to list current configs: ${listCmd.stdout}${listCmd.stderr}`);
-  }
-  const output = listCmd.stdout.trim();
-  if (output === "") {
-    return [];
-  }
-  return output.split("\n").map((nsConfigPair) => nsConfigPair.split("/")[1]);
-}
-
-export function removeConfig(repoPath: string, namespace: string, configKey: string) {
-  const removeCmd = spawnSync("lekko", ["config", "remove", "-n", namespace, "-c", configKey, "--force"], {
-    encoding: "utf-8",
-    cwd: repoPath,
-  });
-  if (removeCmd.error !== undefined || removeCmd.status !== 0) {
-    throw new Error(`Failed to remove config ${namespace}/${configKey}: ${removeCmd.stdout}${removeCmd.stderr}`);
-  }
-}
-
-function getProtoPath(repoPath: string, namespace: string) {
-  return path.join(repoPath, "proto", namespace, "config", "v1beta1", `${namespace}.proto`);
-}
-
-/**
- * Generate .proto files in local config repo.
- * TODO: Switch to using proto fds when we want to add more advanced features
- * and be more error-proof instead of manually constructing file contents
- */
-export function genProtoFile(sourceFile: ts.SourceFile, repoPath: string, builder: ProtoFileBuilder) {
-  // Nothing to write?
-  if (Object.keys(builder.messages).length === 0) {
-    return;
-  }
-  const namespace = path.basename(sourceFile.path, path.extname(sourceFile.path));
-  const protoPath = getProtoPath(repoPath, namespace);
-
-  let contents = `syntax = "proto3";\n\n`;
-  contents += `package ${namespace}.config.v1beta1;\n\n`;
-
-  Object.entries(builder.messages).forEach(([messageName, fields]) => {
-    contents += `message ${messageName} {\n  ${fields.join("\n  ")}\n}\n\n`;
-  });
-
-  fs.mkdirSync(path.dirname(protoPath), { recursive: true });
-  fs.writeFileSync(protoPath, contents);
-
-  const formatCmd = spawnSync("buf", ["format", protoPath, "--write"], {
-    encoding: "utf-8",
-  });
-  if (formatCmd.error !== undefined || formatCmd.status !== 0) {
-    throw new LekkoGenError(`Failed to generate well-formed protobuf files: ${formatCmd.stdout}${formatCmd.stderr}.`);
-  }
-}
-
-function processArrayElement(element: ts.Expression) {
-  if (ts.isStringLiteral(element)) {
-    return element.text;
-  } else if (ts.isNumericLiteral(element)) {
-    return Number(element.text);
-  } else if (element.kind === ts.SyntaxKind.TrueKeyword) {
-    return true;
-  } else if (element.kind === ts.SyntaxKind.FalseKeyword) {
-    return false;
+  // Add message descriptor, checking for duplicates
+  if (fd.messageType.find((existing) => existing.name === md.name) !== undefined) {
+    throw new Error(`Duplicate registration of message ${md.name}`);
   } else {
-    return element.getText();
+    fd.messageType.push(md);
   }
+  // TODO: add message dependencies to file descriptor
 }
 
-function processArrayElements(elements: ts.NodeArray<ts.Expression>): Array<string | number | boolean> {
-  if (elements.length === 0) {
-    return [];
-  }
-  let elementsType: "string" | "number" | "boolean" | undefined = undefined;
-  const processed = elements.map((element) => {
-    const processedElement = processArrayElement(element);
-    const processedElementType = typeof processedElement;
-    // I don't understand how `processedElementType` can be any of these,
-    // but TypeScript made me do it.
-    if (
-      processedElementType === "bigint" ||
-      processedElementType === "symbol" ||
-      processedElementType === "object" ||
-      processedElementType === "function" ||
-      processedElementType === "undefined"
-    ) {
-      throw new LekkoParseError(`${processedElementType} is not supported`, element);
-    }
-    if (elementsType === undefined) {
-      elementsType = processedElementType;
-    } else if (processedElementType !== elementsType) {
-      throw new LekkoParseError("Array elements must be of the same type", element);
-    }
-    return processedElement;
-  });
-  return processed;
-}
-
-/*
- * Proto naming convention
- * MessageNames in UpperCamel
- * field_names in snake_case
- * tsVariables in camelCase
- * TsInterfaces in UpperCamel
- * config-names in kebab-case
- */
-class ProtoName {
-  raw: string;
-  constructor(raw: string) {
-    this.raw = raw;
-  }
-
-  public messageName() {
-    return upperFirst(camelCase(this.raw));
-  }
-  public fieldName() {
-    return snakeCase(this.raw);
-  }
-}
-
-export function paramArrayToDescriptorProto(
-  params: ts.NodeArray<ts.ParameterDeclaration>,
-  checker: TypeChecker,
-  messageName: string,
-  path: string,
-): DescriptorProto {
-  const ret = new DescriptorProto({ name: messageName });
-  for (let idx = 0; idx < params.length; ++idx) {
-    const param = params[idx];
-    //const propertyName = (param.name as ts.Identifier).text;
-    const propertyType = checker.getTypeAtLocation(param.type as ts.TypeReferenceNode);
-    //const fieldName = new ProtoName(propertyName.toString());
-    const fieldName = new ProtoName(""); // always going to be an object
-    tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `${path}.${messageName}`, idx + 1);
-    const symbol = propertyType.getSymbol();
-    assert(symbol);
-    return symbolToDescriptorProto(symbol, checker, fieldName.messageName(), `${path}.${messageName}`);
-  }
-  return ret;
-}
-
-export function interfaceToDescriptorProto(namespace: string, node: ts.InterfaceDeclaration, checker: TypeChecker): DescriptorProto {
-  const ret = new DescriptorProto();
-  const interfaceName = new ProtoName(node.name.getText());
-  ret.name = interfaceName.messageName();
-  ret.field = [];
-  for (let idx = 0; idx < node.members.length; ++idx) {
-    const member = node.members[idx];
+export function interfaceToMessageDescriptor(node: ts.InterfaceDeclaration): DescriptorProto {
+  const name = node.name.getText();
+  const md = new DescriptorProto({ name });
+  node.members.forEach((member, idx) => {
     if (ts.isPropertySignature(member)) {
-      const fieldName = new ProtoName(member.name.getText());
-      assert(member.type);
-      const propertyType = checker.getTypeAtLocation(member.type);
-      tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, `${namespace}.config.v1beta1.${interfaceName.messageName()}`, idx + 1);
-
-      // the inner thing always returns a field, and may return a nested type
+      md.field.push(propertySignatureToFieldDescriptor(member, idx + 1));
     } else {
       throw new LekkoParseError(`Unsupported member type: ${ts.SyntaxKind[member.kind]} - ${member.getFullText()}`, member);
     }
-  }
-  return ret;
-}
-
-// TODO: Test that this actually works for nested proto fields
-export function symbolToDescriptorProto(node: ts.Symbol, checker: TypeChecker, messageName: string, path: string): DescriptorProto {
-  if (node.members == undefined) {
-    throw new Error(`Invalid symbol ${node.name}`);
-  }
-  const ret = new DescriptorProto({ name: messageName });
-
-  const members = Array.from(node.members);
-  for (let idx = 0; idx < members.length; ++idx) {
-    const [propertyName, symbol] = members[idx];
-    const propertyType = checker.getTypeOfSymbol(symbol);
-    const fieldName = new ProtoName(propertyName.toString());
-
-    tsTypeToProtoFieldDescription(ret, checker, propertyType, fieldName, path, idx + 1);
-  }
-  return ret;
-}
-
-function tsTypeToProtoFieldDescription(d: DescriptorProto, checker: TypeChecker, type: ts.Type, fieldName: ProtoName, path: string, fieldNumber: number) {
-  const fd = {
-    name: fieldName.fieldName(),
-    number: fieldNumber,
-    type: "",
-    typeName: "",
-  };
-  if (type.flags & ts.TypeFlags.String) {
-    fd.type = "TYPE_STRING";
-    d.field.push(FieldDescriptorProto.fromJson(fd));
-    return;
-  }
-  if (type.flags & ts.TypeFlags.Number) {
-    fd.type = "TYPE_DOUBLE";
-    d.field.push(FieldDescriptorProto.fromJson(fd));
-    return;
-  }
-  // TODO: Int fields
-  if (type.flags & ts.TypeFlags.Boolean) {
-    fd.type = "TYPE_BOOL";
-    d.field.push(FieldDescriptorProto.fromJson(fd));
-    return;
-  }
-  if (type.flags & ts.TypeFlags.Union) {
-    const unionType: ts.UnionType = type as ts.UnionType;
-    // If optional or undefined and another type, handle - proto fields are all optional
-    // But specifically for optional booleans, there are 3 types - true, false, and undefined
-    if (unionType.types.length === 3) {
-      if (
-        unionType.types.some((t) => isIntrinsicType(t) && t.intrinsicName === "false") &&
-        unionType.types.some((t) => isIntrinsicType(t) && t.intrinsicName === "true") &&
-        unionType.types.some((t) => t.flags & ts.TypeFlags.Undefined)
-      ) {
-        fd.type = "TYPE_BOOL";
-        d.field.push(FieldDescriptorProto.fromJson(fd));
-        return;
-      } else {
-        throw new Error("Union types are currently not fully supported.");
-      }
-    } else if (unionType.types.length === 2) {
-      let definedType: ts.Type;
-      const [typeA, typeB] = unionType.types;
-      if (typeA.flags & ts.TypeFlags.Undefined) {
-        definedType = typeB;
-      } else if (typeB.flags & ts.TypeFlags.Undefined) {
-        definedType = typeA;
-      } else {
-        throw new Error("Union types are currently not fully supported.");
-      }
-      tsTypeToProtoFieldDescription(d, checker, definedType, fieldName, path, fieldNumber);
-      return;
-    }
-    // If all the types are ObjectLiteral - do we want to use that type, or make an enum?  Do we want to do oneOf for the others?
-    throw new Error("Union types are currently not fully supported.");
-  }
-  if (type.flags & ts.TypeFlags.Object) {
-    // Need to turn nested objects in interface to protos as well
-    const symbol = type.getSymbol();
-    assert(symbol);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-    if (symbol.escapedName === "Array") {
-      const typeArgs = (type as ts.TypeReference).typeArguments;
-      assert(typeArgs);
-      const innerType = typeArgs[0];
-      tsTypeToProtoFieldDescription(d, checker, innerType, fieldName, path, fieldNumber);
-      d.field[d.field.length - 1].label = 3; // repeated
-      return;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
-    } else if (symbol.escapedName === "Date") {
-      fd.type = "TYPE_INT32"; // TODO dates are stupid
-      d.field.push(FieldDescriptorProto.fromJson(fd));
-      return;
-    } else {
-      const symbol = type.getSymbol();
-      assert(symbol);
-      fd.type = "TYPE_MESSAGE";
-      fd.typeName = path + "." + fieldName.messageName(); // TODO need to differentiate between embedded and referenced stuff
-      d.field.push(FieldDescriptorProto.fromJson(fd));
-      d.nestedType.push(symbolToDescriptorProto(symbol, checker, fieldName.messageName(), path)); // TODO - do we need to add to the path here?
-      return;
-    }
-  }
-  throw new Error(`Unsupported TypeScript type: ${type.flags} - ${checker.typeToString(type)}`);
-}
-
-export function sourceFileToJson(sourceFile: ts.SourceFile, program: ts.Program) {
-  const namespace = path.basename(sourceFile.fileName, path.extname(sourceFile.fileName));
-  const configs: { static_feature: LekkoConfigJSON }[] = [];
-  const tsInstance = ts;
-  const checker = program.getTypeChecker();
-  const fd = new FileDescriptorProto({
-    package: `${namespace}.config.v1beta1`,
-    syntax: "proto3",
-    name: "lekko.proto",
-    // TODO
   });
+  return md;
+}
 
-  function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
-    assert(fd.package);
-    if (tsInstance.isSourceFile(node)) {
-      const match = node.fileName.match(LEKKO_FILENAME_REGEX);
-      if (match) {
-        tsInstance.visitEachChild(node, visit, undefined);
-      }
-    } else if (tsInstance.isFunctionDeclaration(node)) {
-      const { checkedNode, configName, returnType } = checkConfigFunctionDeclaration(tsInstance, checker, node);
-      // Apply changes to config repo
-      const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
-      const args = functionToArgsDescriptor(checkedNode, checker, fd.package);
-      if (args !== undefined) {
-        fd.messageType.push(args);
-      }
-      configs.push({ static_feature: configJSON });
-    } else if (tsInstance.isInterfaceDeclaration(node)) {
-      fd.messageType.push(interfaceToDescriptorProto(namespace, node, checker));
-    }
-    return undefined;
+/**
+ * Does not currently handle nested types, type references, or maps.
+ */
+function propertySignatureToFieldDescriptor(ps: ts.PropertySignature, number: number): FieldDescriptorProto {
+  if (ps.type === undefined) {
+    throw new LekkoParseError("Missing type signature", ps);
   }
+  if (ps.questionToken === undefined) {
+    throw new LekkoParseError("Interface fields must be marked as optional using a question token", ps);
+  }
+  const fd = new FieldDescriptorProto({ name: snakeCase(ps.name.getText()), number });
 
-  tsInstance.visitNode(sourceFile, visit);
-
-  return [{ name: namespace, configs }, fd];
+  function primitiveTypeToFieldDescriptorType(typeNode: ts.TypeNode): FieldDescriptorProto_Type | undefined {
+    switch (typeNode.kind) {
+      case ts.SyntaxKind.BooleanKeyword: {
+        return FieldDescriptorProto_Type.BOOL;
+      }
+      case ts.SyntaxKind.StringKeyword: {
+        return FieldDescriptorProto_Type.STRING;
+      }
+      case ts.SyntaxKind.NumberKeyword: {
+        return FieldDescriptorProto_Type.DOUBLE;
+      }
+      // TODO: int fields
+      default: {
+        return undefined;
+      }
+    }
+  }
+  // If array type, treat and parse as repeated
+  if (ps.type.kind === ts.SyntaxKind.ArrayType) {
+    const fdt = primitiveTypeToFieldDescriptorType((ps.type as ts.ArrayTypeNode).elementType);
+    if (fdt === undefined) {
+      throw new LekkoParseError("Unsupported array element type", ps.type);
+    }
+    fd.label = FieldDescriptorProto_Label.REPEATED;
+    fd.type = fdt;
+    return fd;
+  }
+  // TODO: type references to other types
+  const fdt = primitiveTypeToFieldDescriptorType(ps.type);
+  if (fdt === undefined) {
+    throw new LekkoParseError(`Unsupported field type ${ts.SyntaxKind[ps.type.kind]}`, ps.type);
+  }
+  fd.type = fdt;
+  return fd;
 }
