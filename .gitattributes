@@ -1,1 +1,1 @@
-packages/transformer/src/gen linguist-generated=true
+packages/transformer/src/gen/**/* linguist-generated=true
