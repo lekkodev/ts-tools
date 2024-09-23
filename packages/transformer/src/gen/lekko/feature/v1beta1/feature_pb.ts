@@ -18,7 +18,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Any as Any$1, FileDescriptorSet, Message, proto3, Struct } from "@bufbuild/protobuf";
+import { Any as Any$1, FileDescriptorSet, Message, proto3, protoInt64, Struct } from "@bufbuild/protobuf";
 import { Rule } from "../../rules/v1beta2/rules_pb.js";
 import { Rule as Rule$1 } from "../../rules/v1beta3/rules_pb.js";
 
@@ -414,6 +414,11 @@ export class Any extends Message<Any> {
    */
   value = new Uint8Array(0);
 
+  /**
+   * @generated from field: repeated lekko.feature.v1beta1.ValueOveride overrides = 3;
+   */
+  overrides: ValueOveride[] = [];
+
   constructor(data?: PartialMessage<Any>) {
     super();
     proto3.util.initPartial(data, this);
@@ -424,6 +429,7 @@ export class Any extends Message<Any> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "type_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "value", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
+    { no: 3, name: "overrides", kind: "message", T: ValueOveride, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Any {
@@ -440,6 +446,118 @@ export class Any extends Message<Any> {
 
   static equals(a: Any | PlainMessage<Any> | undefined, b: Any | PlainMessage<Any> | undefined): boolean {
     return proto3.util.equals(Any, a, b);
+  }
+}
+
+/**
+ * Not sure if this is the format that I want, or if I want more like a pluck location thing..
+ *
+ * @generated from message lekko.feature.v1beta1.ConfigCall
+ */
+export class ConfigCall extends Message<ConfigCall> {
+  /**
+   * @generated from field: string type_url = 1;
+   */
+  typeUrl = "";
+
+  /**
+   * @generated from field: string namespace = 2;
+   */
+  namespace = "";
+
+  /**
+   * @generated from field: string key = 3;
+   */
+  key = "";
+
+  /**
+   * @generated from field: uint64 field_number = 4;
+   */
+  fieldNumber = protoInt64.zero;
+
+  constructor(data?: PartialMessage<ConfigCall>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "lekko.feature.v1beta1.ConfigCall";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "type_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "field_number", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ConfigCall {
+    return new ConfigCall().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ConfigCall {
+    return new ConfigCall().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ConfigCall {
+    return new ConfigCall().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ConfigCall | PlainMessage<ConfigCall> | undefined, b: ConfigCall | PlainMessage<ConfigCall> | undefined): boolean {
+    return proto3.util.equals(ConfigCall, a, b);
+  }
+}
+
+/**
+ * @generated from message lekko.feature.v1beta1.ValueOveride
+ */
+export class ValueOveride extends Message<ValueOveride> {
+  /**
+   * @generated from field: lekko.feature.v1beta1.ConfigCall call = 1;
+   */
+  call?: ConfigCall;
+
+  /**
+   * @generated from field: repeated int32 field_path = 2;
+   */
+  fieldPath: number[] = [];
+
+  /**
+   * @generated from field: uint32 position = 3;
+   */
+  position = 0;
+
+  /**
+   * @generated from field: bool splat = 4;
+   */
+  splat = false;
+
+  constructor(data?: PartialMessage<ValueOveride>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "lekko.feature.v1beta1.ValueOveride";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "call", kind: "message", T: ConfigCall },
+    { no: 2, name: "field_path", kind: "scalar", T: 5 /* ScalarType.INT32 */, repeated: true },
+    { no: 3, name: "position", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 4, name: "splat", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ValueOveride {
+    return new ValueOveride().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ValueOveride {
+    return new ValueOveride().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ValueOveride {
+    return new ValueOveride().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ValueOveride | PlainMessage<ValueOveride> | undefined, b: ValueOveride | PlainMessage<ValueOveride> | undefined): boolean {
+    return proto3.util.equals(ValueOveride, a, b);
   }
 }
 

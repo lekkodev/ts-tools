@@ -4,6 +4,6 @@ plugins:
     opt: target=ts
     out: src/gen
 inputs:
-  - module: buf.build/lekkodev/cli:david-repo-contents
+  - module: buf.build/lekkodev/cli
     paths:
       - "lekko/feature/v1beta1"
