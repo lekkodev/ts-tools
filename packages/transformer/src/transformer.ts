@@ -1,117 +1,14 @@
-import os from "os";
 import path from "path";
-import fs from "node:fs";
-import assert from "assert";
-import { spawnSync } from "child_process";
 import { type TransformerExtras } from "ts-patch";
 import ts from "typescript";
-import { type ProtoFileBuilder, type LekkoConfigJSON, type LekkoTransformerOptions } from "./types";
-import { type CheckedFunctionDeclaration, LEKKO_FILENAME_REGEX, assertIsCheckedFunctionDeclaration, isLekkoConfigFile } from "./helpers";
-import { handleInterfaceAsProto, genProtoFile, functionToConfigJSON, genStarlark, listConfigs, removeConfig } from "./ts-to-lekko";
+import { type LekkoTransformerOptions } from "./types";
+import { type CheckedFunctionDeclaration, LEKKO_FILENAME_REGEX, assertIsCheckedFunctionDeclaration } from "./helpers";
 import kebabCase from "lodash.kebabcase";
-import { LekkoGenError, LekkoParseError } from "./errors";
-import { readDotLekko } from "./dotlekko";
+import { LekkoParseError } from "./errors";
 
 const CTX_IDENTIFIER_NAME = "_ctx";
 const EXCEPTION_IDENTIFIER_NAME = "e";
 const CLIENT_IDENTIFIER_NAME = "_client";
-
-/**
- * Get path to locally checked out config repo on disk
- */
-export function getRepoPathFromCLI(): string {
-  const repoCmd = spawnSync("lekko", ["repo", "path"], { encoding: "utf-8" });
-  if (repoCmd.error !== undefined || repoCmd.status !== 0) {
-    return path.join(os.homedir(), "Library/Application Support/Lekko/Config Repositories/default/");
-  }
-  return repoCmd.stdout.trim();
-}
-
-/**
- * Generate Proto and Starlark from Typescript and then regenerate Typescript back
- */
-export function bisync(lekkoPath?: string, repoPath?: string) {
-  if (lekkoPath === undefined) {
-    const dot = readDotLekko();
-    lekkoPath = path.resolve(dot.lekkoPath);
-  }
-  if (repoPath === undefined) {
-    repoPath = getRepoPathFromCLI();
-  }
-  const lekkoFiles: string[] = [];
-  fs.readdirSync(lekkoPath).forEach((file) => {
-    if (file.endsWith(".ts")) {
-      lekkoFiles.push(`${lekkoPath}/${file}`);
-    }
-  });
-  const tsInstance = ts;
-  const program = tsInstance.createProgram(lekkoFiles, { noEmit: true });
-  const checker = program.getTypeChecker();
-
-  const protoFileBuilder: ProtoFileBuilder = { messages: {}, enums: {} };
-  const configs: LekkoConfigJSON[] = [];
-
-  function visitSourceFile(sourceFile: ts.SourceFile) {
-    // e.g. src/lekko/default.ts -> default
-    const namespace = path.basename(sourceFile.fileName, path.extname(sourceFile.fileName));
-
-    function visit(node: ts.Node): ts.Node | ts.Node[] | undefined {
-      assert(repoPath !== undefined);
-      if (tsInstance.isSourceFile(node)) {
-        tsInstance.visitEachChild(node, visit, undefined);
-        try {
-          // The following are per-file operations
-          const configSet = new Set(listConfigs(repoPath, namespace));
-          genProtoFile(node, repoPath, protoFileBuilder);
-          configs.forEach((config) => {
-            genStarlark(repoPath, namespace, config);
-            // If used to gen starlark, don't remove in cleanup
-            configSet.delete(config.key);
-          });
-          // Remove leftover configs that weren't in ns file
-          // TODO: Batch remove in CLI
-          configSet.forEach((configKey) => {
-            try {
-              removeConfig(repoPath, namespace, configKey);
-            } catch (e) {
-              // Failing to remove is fine, log but ignore
-              if (e instanceof Error) {
-                console.log(e.message);
-              }
-            }
-          });
-
-          const genTSCmd = spawnSync("lekko", ["gen", "ts", "-n", namespace, "-r", repoPath], {
-            encoding: "utf-8",
-          });
-          if (genTSCmd.error !== undefined || genTSCmd.status !== 0) {
-            throw new LekkoGenError(genTSCmd.stdout);
-          }
-        } catch (e) {
-          if (e instanceof Error) {
-            console.log(`[@lekko/ts-transformer] ${e.message}`);
-          }
-        }
-      } else if (tsInstance.isFunctionDeclaration(node)) {
-        const { checkedNode, configName, returnType } = checkConfigFunctionDeclaration(tsInstance, checker, node);
-        // Apply changes to config repo
-        const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
-        configs.push(configJSON);
-      } else if (tsInstance.isInterfaceDeclaration(node)) {
-        handleInterfaceAsProto(node, checker, protoFileBuilder);
-      }
-      return undefined;
-    }
-
-    ts.visitNode(sourceFile, visit);
-  }
-
-  program.getSourceFiles().forEach((sourceFile) => {
-    if (isLekkoConfigFile(sourceFile.fileName, lekkoPath)) {
-      visitSourceFile(sourceFile);
-    }
-  });
-}
 
 export function checkConfigFunctionDeclaration(
   tsInstance: typeof ts,
@@ -149,15 +46,7 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
   return (context: ts.TransformationContext) => {
     const { factory } = context;
 
-    function transformLocalToRemote(
-      node: CheckedFunctionDeclaration,
-      namespace: string,
-      configName: string,
-      returnType: ts.Type,
-      // We work with parsing the JSON representations of config protos for now
-      // It's probably slower but less dependencies to worry about and still "typed"
-      config: LekkoConfigJSON,
-    ): ts.Node | ts.Node[] {
+    function transformLocalToRemote(node: CheckedFunctionDeclaration, namespace: string, configName: string): ts.Node | ts.Node[] {
       return [
         factory.updateFunctionDeclaration(
           node,
@@ -217,7 +106,9 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
           factory.createBinaryExpression(
             factory.createPropertyAccessExpression(node.name, factory.createIdentifier("_evaluationType")),
             factory.createToken(tsInstance.SyntaxKind.EqualsToken),
-            factory.createStringLiteral(config.type),
+            // FIXME: this was always incorrect but only used for certain error logs in the React SDK.
+            // We should be able to remove it fully eventually now that we have built-in debug logs.
+            factory.createStringLiteral(""),
           ),
         ),
       ];
@@ -337,10 +228,9 @@ export function transformer(program: ts.Program, pluginConfig?: LekkoTransformer
             return node;
           }
         } else if (tsInstance.isFunctionDeclaration(node)) {
-          const { checkedNode, configName, returnType } = checkConfigFunctionDeclaration(tsInstance, checker, node);
-          const configJSON = functionToConfigJSON(checkedNode, checker, namespace, configName, returnType);
+          const { checkedNode, configName } = checkConfigFunctionDeclaration(tsInstance, checker, node);
           // Transform local (static) to SDK client calls
-          return transformLocalToRemote(checkedNode, namespace, configName, returnType, configJSON);
+          return transformLocalToRemote(checkedNode, namespace, configName);
         }
         return node;
       }
