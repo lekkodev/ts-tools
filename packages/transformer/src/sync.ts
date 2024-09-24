@@ -7,14 +7,54 @@ import ts from "typescript";
 import { FileDescriptorSet, createRegistryFromDescriptors } from "@bufbuild/protobuf";
 import { LekkoParseError } from "./errors";
 import { RepositoryContents, Namespace } from "./gen/lekko/feature/v1beta1/feature_pb";
-import { isLekkoConfigFile } from "./helpers";
 import { checkConfigFunctionDeclaration } from "./transformer";
 import { interfaceToMessageDescriptor, registerMessage, functionToProto } from "./ts-to-lekko";
 
+const COMPILER_OPTIONS: ts.CompilerOptions = {
+  noEmit: true,
+};
+
 /**
- * Parse TypeScript into a representation of config repository contents
+ * Parses TypeScript into a representation of config repository contents.
+ * Expects a map of namespaces to corresponding TypeScript code file contents.
  */
-// TODO: Refactor to take individual files or file contents directly for testability
+export function syncSources(sourceMap: { [filename: string]: string }): RepositoryContents {
+  // Create in-mem source files from source map
+  const filenames = Object.keys(sourceMap);
+  const sourceFileMap = Object.entries(sourceMap).reduce(
+    (agg, [filename, source]) => {
+      // TODO: Script target might need to be configurable
+      const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.ES2015);
+      agg[filename] = sourceFile;
+      return agg;
+    },
+    {} as { [namespace: string]: ts.SourceFile },
+  );
+
+  // Alternate TS compiler host to not use disk fs
+  const tsInstance = ts;
+  const origHost = tsInstance.createCompilerHost(COMPILER_OPTIONS, true);
+  const host: ts.CompilerHost = {
+    fileExists: (fileName) => fileName in sourceFileMap,
+    directoryExists: origHost.directoryExists?.bind(origHost),
+    getSourceFile: (fileName) => sourceFileMap[fileName],
+    getDefaultLibFileName: origHost.getDefaultLibFileName.bind(origHost),
+    writeFile: origHost.writeFile.bind(origHost),
+    getCurrentDirectory: origHost.getCurrentDirectory.bind(origHost),
+    getCanonicalFileName: origHost.getCanonicalFileName.bind(origHost),
+    useCaseSensitiveFileNames: origHost.useCaseSensitiveFileNames.bind(origHost),
+    getNewLine: () => "\n",
+    readFile: (fileName) => sourceMap[fileName],
+  };
+
+  const program = tsInstance.createProgram(filenames, COMPILER_OPTIONS, host);
+
+  return syncInner(tsInstance, program, filenames);
+}
+
+/**
+ * Parses TypeScript files in the specified location into a representation of config repository contents.
+ */
 export function sync(lekkoPath?: string): RepositoryContents {
   if (lekkoPath === undefined) {
     const dot = readDotLekko();
@@ -27,7 +67,12 @@ export function sync(lekkoPath?: string): RepositoryContents {
     }
   });
   const tsInstance = ts;
-  const program = tsInstance.createProgram(lekkoFiles, { noEmit: true });
+  const program = tsInstance.createProgram(lekkoFiles, COMPILER_OPTIONS);
+
+  return syncInner(tsInstance, program, lekkoFiles);
+}
+
+export function syncInner(tsInstance: typeof ts, program: ts.Program, filenames: string[]): RepositoryContents {
   const checker = program.getTypeChecker();
 
   // Repository contents will get gradually built up as files are processed
@@ -75,7 +120,7 @@ export function sync(lekkoPath?: string): RepositoryContents {
   }
 
   program.getSourceFiles().forEach((sourceFile) => {
-    if (isLekkoConfigFile(sourceFile.fileName, lekkoPath)) {
+    if (filenames.includes(sourceFile.fileName)) {
       visitSourceFile(sourceFile);
     }
   });
@@ -86,7 +131,12 @@ export function sync(lekkoPath?: string): RepositoryContents {
 /**
  * Create a new file descriptor set with well-known types included.
  * We bundle a prebuilt image of this base FDS with this library because
- * bufbuild/protobuf-es doesn't include these file descriptor for bundle size reasons.
+ * bufbuild/protobuf-es doesn't include these file descriptors for bundle size reasons.
+ *
+ * Included file descriptors:
+ * - google/protobuf/wrappers.proto
+ * - google/protobuf/struct.proto
+ * - google/protobuf/duration.proto
  */
 function newDefaultFileDescriptorSet(): FileDescriptorSet {
   try {
@@ -109,13 +159,31 @@ if (require.main === module) {
 
   const program = new Command()
     .description("Parse Lekko files and output the detected repository contents")
+    .option("--files <paths>", "comma separated list of file paths, mutually exclusive with lekko-dir", (values: string) =>
+      values.split(",").map((value) => value.trim()),
+    )
     .option("--lekko-dir <string>", "path to directory with native Lekko files")
     .option("--json", "whether to output serialized repository contents in JSON instead of binary");
   program.parse();
   const options = program.opts();
   const lekkoDir = options.lekkoDir;
+  const filenames = options.files;
 
-  const repoContents = sync(lekkoDir);
+  let repoContents;
+  if (filenames !== undefined) {
+    const sourceMap = filenames.reduce(
+      (agg, filename) => {
+        const source = fs.readFileSync(filename, { encoding: "utf-8" });
+        agg[filename] = source;
+        return agg;
+      },
+      {} as { [filename: string]: string },
+    );
+    repoContents = syncSources(sourceMap);
+  } else {
+    repoContents = sync(lekkoDir);
+  }
+
   if (repoContents.fileDescriptorSet === undefined) {
     throw new Error("Unexpected missing file descriptor set after sync");
   }
