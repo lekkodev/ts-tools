@@ -103,7 +103,9 @@ export function syncInner(tsInstance: typeof ts, program: ts.Program, filenames:
     repoContents.fileDescriptorSet = fds;
     const typeRegistry = createRegistryFromDescriptors(fds);
 
-    const namespaceProto = new Namespace({});
+    const namespaceProto = new Namespace({
+      name: namespace,
+    });
 
     // Visitor for second pass; translate functions and build up repo contents
     function visitFunctions(node: ts.Node): ts.Node | ts.Node[] | undefined {
@@ -159,15 +161,15 @@ if (require.main === module) {
 
   const program = new Command()
     .description("Parse Lekko files and output the detected repository contents")
-    .option("--files <paths>", "comma separated list of file paths, mutually exclusive with lekko-dir", (values: string) =>
+    .option("--lekko-files <paths>", "comma separated list of Lekko file paths, mutually exclusive with lekko-dir", (values: string) =>
       values.split(",").map((value) => value.trim()),
     )
     .option("--lekko-dir <string>", "path to directory with native Lekko files")
-    .option("--json", "whether to output serialized repository contents in JSON instead of binary");
+    .option("--json", "whether to output serialized repository contents in JSON instead of base64 binary");
   program.parse();
   const options = program.opts();
   const lekkoDir = options.lekkoDir;
-  const filenames = options.files;
+  const filenames = options.lekkoFiles;
 
   let repoContents;
   if (filenames !== undefined) {
@@ -193,6 +195,6 @@ if (require.main === module) {
     console.log(repoContents.toJsonString({ prettySpaces: 2, typeRegistry }));
   } else {
     const buf = Buffer.from(repoContents.toBinary());
-    console.log(buf.toString("utf-8"));
+    console.log(buf.toString("base64"));
   }
 }
