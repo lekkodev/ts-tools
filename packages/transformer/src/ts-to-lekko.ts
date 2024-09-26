@@ -1,4 +1,5 @@
 import snakeCase from "lodash.snakecase";
+import kebabCase from "lodash.kebabcase";
 import ts from "typescript";
 import { LekkoParseError } from "./errors";
 import type { JSONObject, JSONValue, SupportedExpressionName } from "./types";
@@ -378,6 +379,13 @@ function expressionToProtoValue(expression: ts.Expression, namespace: string, pr
       } else {
         throw new LekkoParseError(`unsupported prefix operator: ${ts.SyntaxKind[pue.operator]}`, expression);
       }
+      break;
+    }
+    case ts.SyntaxKind.CallExpression: {
+      const callExpr = expression as ts.CallExpression;
+      const functionName = callExpr.expression.getText();
+      const configName = kebabCase(functionName.substring(3));
+      value = rules.ConfigCall.fromJson({"key": configName})
       break;
     }
     default:
