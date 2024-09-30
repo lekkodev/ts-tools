@@ -518,6 +518,11 @@ export class ConfigCall extends Message<ConfigCall> {
    */
   fieldNumber = protoInt64.zero;
 
+  /**
+   * @generated from field: string field_name = 5;
+   */
+  fieldName = "";
+
   constructor(data?: PartialMessage<ConfigCall>) {
     super();
     proto3.util.initPartial(data, this);
@@ -530,6 +535,7 @@ export class ConfigCall extends Message<ConfigCall> {
     { no: 2, name: "namespace", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "field_number", kind: "scalar", T: 4 /* ScalarType.UINT64 */ },
+    { no: 5, name: "field_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ConfigCall {
