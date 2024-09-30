@@ -388,6 +388,18 @@ function expressionToProtoValue(expression: ts.Expression, namespace: string, pr
       value = rules.ConfigCall.fromJson({"key": configName})
       break;
     }
+    case ts.SyntaxKind.PropertyAccessExpression: {
+      const propertyAccessExpression = expression as ts.PropertyAccessExpression;
+      if (!ts.isCallExpression(propertyAccessExpression.expression)) {
+        throw new LekkoParseError(`Do not know how to parse: `, expression);
+      }
+      const callExpr = propertyAccessExpression.expression as ts.CallExpression;
+      const fieldName = snakeCase(propertyAccessExpression.name.text);
+      const functionName = callExpr.expression.getText();
+      const configName = kebabCase(functionName.substring(3));
+      value = rules.ConfigCall.fromJson({"key": configName, "fieldName": fieldName})
+      break;
+    }
     default:
       throw new LekkoParseError(`unsupported syntax: ${ts.SyntaxKind[expression.kind]}`, expression);
   }
