@@ -1,6 +1,6 @@
 import { type PropsWithChildren } from "react";
 import { GetRepositoryContentsResponse } from "@lekko/js-sdk/internal";
-import { logInfo } from "@lekko/js-sdk";
+import { getOptionalClient, logError, logInfo } from "@lekko/js-sdk";
 import { createEnvelopeReadableStream } from "@connectrpc/connect/protocol";
 import { trailerFlag, trailerParse } from "@connectrpc/connect/protocol-grpc-web";
 import { fromUint8Array } from "js-base64";
@@ -91,7 +91,7 @@ export async function getEncodedLekkoConfigs({
   apiKey?: string;
   repositoryOwner?: string;
   repositoryName?: string;
-} = {}): Promise<{ configs?: EncodedLekkoConfigs | null; fetchError?: string }> {
+} = {}): Promise<{ configs?: EncodedLekkoConfigs; fetchError?: string }> {
   apiKey ??= process.env.NEXT_PUBLIC_LEKKO_API_KEY;
   repositoryOwner ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_OWNER;
   repositoryName ??= process.env.NEXT_PUBLIC_LEKKO_REPOSITORY_NAME;
@@ -118,6 +118,7 @@ export interface LekkoNextProviderProps extends PropsWithChildren {
    * Defaults to 15 seconds.
    */
   revalidate?: number | false;
+  useGlobalClient?: boolean;
 }
 
 /**
@@ -127,10 +128,27 @@ export interface LekkoNextProviderProps extends PropsWithChildren {
  * Client components under it in the component tree will be able to use `useLekkoConfig`
  * to evaluate configs.
  */
-export async function LekkoNextProvider({ revalidate, children }: LekkoNextProviderProps) {
-  const encodedContents = await getEncodedLekkoConfigs({ revalidate });
+export async function LekkoNextProvider({ revalidate, children, useGlobalClient }: LekkoNextProviderProps) {
+  let configs: string | undefined;
+  let fetchError: string | undefined;
+
+  if (useGlobalClient) {
+    const contents = getOptionalClient()?.contentsResponse;
+    if (contents !== undefined) {
+      logInfo(`[lekko][next] Using contents from global client: ${contents.commitSha}`);
+      configs = fromUint8Array(contents.toBinary());
+    } else {
+      logError(`[lekko][next] Global client is not initialized`);
+      fetchError = "Lekko client is not initialized.";
+    }
+  } else {
+    const encodedContents = await getEncodedLekkoConfigs({ revalidate });
+    configs = encodedContents.configs;
+    fetchError = encodedContents.fetchError;
+  }
+
   return (
-    <LekkoClientProvider configs={encodedContents.configs} fetchError={encodedContents.fetchError}>
+    <LekkoClientProvider configs={configs} fetchError={fetchError}>
       {children}
     </LekkoClientProvider>
   );
