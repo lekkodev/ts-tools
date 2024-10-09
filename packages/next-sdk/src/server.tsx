@@ -1,4 +1,4 @@
-import { type PropsWithChildren } from "react";
+import { cache, type PropsWithChildren } from "react";
 import { GetRepositoryContentsResponse } from "@lekko/js-sdk/internal";
 import { getOptionalClient, logError, logInfo } from "@lekko/js-sdk";
 import { createEnvelopeReadableStream } from "@connectrpc/connect/protocol";
@@ -121,6 +121,9 @@ export interface LekkoNextProviderProps extends PropsWithChildren {
   useGlobalClient?: boolean;
 }
 
+// wrap in react.cache to make it play nicer with Next.js caching
+const getContentsFromGlobalClient = cache(() => getOptionalClient()?.contentsResponse);
+
 /**
  * This provider is only compatible with the App Router. For Pages Router, see LekkoClientProvider.
  *
@@ -133,12 +136,12 @@ export async function LekkoNextProvider({ revalidate, children, useGlobalClient 
   let fetchError: string | undefined;
 
   if (useGlobalClient) {
-    const contents = getOptionalClient()?.contentsResponse;
+    const contents = getContentsFromGlobalClient();
     if (contents !== undefined) {
-      logInfo(`[lekko][next] Using contents from global client: ${contents.commitSha}`);
+      logInfo(`[lekko] Using contents from global client: ${contents.commitSha}`);
       configs = fromUint8Array(contents.toBinary());
     } else {
-      logError(`[lekko][next] Global client is not initialized`);
+      logError(`[lekko] Global client is not initialized`);
       fetchError = "Lekko client is not initialized.";
     }
   } else {

@@ -23,6 +23,14 @@ export function useLekkoConfig<T, C extends LekkoContext>(configFn: LekkoConfigF
   return configFn(context, client);
 }
 
+export function useLekkoClient() {
+  const client = useContext(LekkoClientContext);
+  if (client == null) {
+    throw new Error("Lekko is not initialized.");
+  }
+  return client;
+}
+
 const LekkoClientContext = createContext<SyncClient | null>(null);
 
 interface LekkoClientProviderProps extends PropsWithChildren {
