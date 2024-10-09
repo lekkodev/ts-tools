@@ -5,12 +5,7 @@ import {
   withLekkoServerSideProps,
   withLekkoStaticProps,
 } from "./server";
-import {
-  LekkoClientProvider,
-  useLekkoConfig,
-  type LekkoConfigFn,
-  type LekkoContext,
-} from "./client";
+import { LekkoClientProvider, useLekkoClient, useLekkoConfig, type LekkoConfigFn, type LekkoContext } from "./client";
 import { type EncodedLekkoConfigs } from "./types";
 
 export {
@@ -19,6 +14,7 @@ export {
   withLekkoServerSideProps,
   withLekkoStaticProps,
   LekkoClientProvider,
+  useLekkoClient,
   useLekkoConfig,
 };
 export {
