@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 export default tseslint.config(
   {
-    ignores: ["**/*.js", "**/*.cjs", "**/*.mjs", "**/bin/**/*", "**/dist/**/*"],
+    ignores: ["**/*.js", "**/*.cjs", "**/*.mjs", "**/bin/**/*", "**/dist/**/*", "**/__tests__/**/*"],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
