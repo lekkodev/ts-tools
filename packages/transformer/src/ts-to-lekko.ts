@@ -53,7 +53,7 @@ function exprToContextKey(expr: ts.Expression): string {
     case ts.SyntaxKind.PropertyAccessExpression:
       return snakeCase((expr as ts.PropertyAccessExpression).name.getText());
     default:
-      throw new LekkoParseError(`need to be able to handle: ${ts.SyntaxKind[expr.kind]}`, expr);
+      throw new LekkoParseError(`Unsupported expression kind: ${ts.SyntaxKind[expr.kind]}`, expr);
   }
 }
 
