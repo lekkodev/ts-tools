@@ -566,6 +566,7 @@ export function registerMessage(fds: FileDescriptorSet, namespace: string, md: D
   if (fd === undefined) {
     // Create new if necessary
     fd = new FileDescriptorProto({
+      syntax: "proto3",
       name: filePath,
       package: `${namespace}.config.v1beta1`,
     });
